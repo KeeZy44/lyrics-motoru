@@ -290,23 +290,54 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
       return URL.createObjectURL(blob);
     }
 
+    function describeError(error) {
+      if (error instanceof Error && error.message) return error.message;
+      if (typeof error === 'string' && error.trim()) return error;
+      if (error && typeof error === 'object') {
+        if (error.message) return String(error.message);
+        try { return JSON.stringify(error); } catch (_) {}
+      }
+      return 'FFmpeg motoru başlatılamadı. Tarayıcı konsolunda (F12 > Console) ayrıntılı hata olabilir. CDN/Worker erişimini kontrol edin.';
+    }
+
     async function ensureFFmpeg() {
       if (ffmpegReady) return;
       if (!FFmpegClass) throw new Error('FFmpeg arayüzü yüklenemedi. CDN engellenmiş olabilir; internet bağlantısını veya tarayıcı eklentilerini kontrol et.');
-      setStatus('Video motoru ilk kez yükleniyor (~30 MB)...', 3);
-      log('FFmpeg tek iş parçacıklı video motoru indiriliyor.');
-      ffmpeg = new FFmpegClass();
-      ffmpeg.on('log', ({ message }) => {
-        if (message && /(error|failed|invalid|could not)/i.test(message)) log(message);
-      });
+
       const ffBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd';
       const coreBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
-      const coreURL = await toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript');
-      const wasmURL = await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm');
-      const classWorkerURL = await toBlobURL(`${ffBase}/814.ffmpeg.js`, 'text/javascript');
-      await ffmpeg.load({ coreURL, wasmURL, classWorkerURL });
-      ffmpegReady = true;
-      log('FFmpeg hazır.');
+
+      try {
+        setStatus('Video motoru hazırlanıyor...', 3);
+        log('FFmpeg arayüzü başlatılıyor.');
+        ffmpeg = new FFmpegClass();
+        ffmpeg.on('log', ({ message }) => {
+          if (message) log('FFmpeg: ' + message);
+        });
+
+        setStatus('FFmpeg çekirdeği indiriliyor...', 4);
+        log('ffmpeg-core.js indiriliyor.');
+        const coreURL = await toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript');
+
+        setStatus('FFmpeg WASM dosyası indiriliyor (~30 MB)...', 5);
+        log('ffmpeg-core.wasm indiriliyor; bu dosya büyük olduğu için biraz sürebilir.');
+        const wasmURL = await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm');
+
+        setStatus('FFmpeg Worker hazırlanıyor...', 6);
+        log('814.ffmpeg.js Worker indiriliyor.');
+        const classWorkerURL = await toBlobURL(`${ffBase}/814.ffmpeg.js`, 'text/javascript');
+
+        setStatus('FFmpeg motoru başlatılıyor...', 7);
+        await ffmpeg.load({ coreURL, wasmURL, classWorkerURL });
+
+        ffmpegReady = true;
+        log('FFmpeg hazır.');
+      } catch (error) {
+        const message = describeError(error);
+        console.error('[TURAN MEDYA] FFmpeg başlatma hatası:', error);
+        log('FFmpeg başlatma hatası: ' + message);
+        throw new Error('FFmpeg başlatılamadı: ' + message + ' | jsDelivr CDN erişimini ve tarayıcıda Worker kullanımını kontrol edin.');
+      }
     }
 
     function wrapText(ctx, text, maxWidth) {
@@ -521,10 +552,11 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         log(`Bitti. Süre: ${audioDuration.toFixed(1)} sn. Çözünürlük: ${width}x${height}.`);
         $('previewContainer').scrollIntoView({ behavior: 'smooth', block: 'center' });
       } catch (error) {
-        console.error(error);
-        setStatus('İşlem durdu: ' + error.message, 0);
-        log('HATA: ' + error.message);
-        alert('Video oluşturulamadı:\n' + error.message);
+        const message = describeError(error);
+        console.error('[TURAN MEDYA] Video oluşturma hatası:', error);
+        setStatus('İşlem durdu: ' + message, 0);
+        log('HATA: ' + message);
+        alert('Video oluşturulamadı:\n' + message);
       } finally {
         processBtn.disabled = false;
         $('checkPoolBtn').disabled = false;
