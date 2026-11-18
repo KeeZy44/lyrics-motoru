@@ -3,40 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Turan Medya - Otomatik Lyrics Video Motoru</title>
+    <title>Turan Medya - Lyrics Video Motoru</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-        .container { background: #1e293b; padding: 30px; border-radius: 16px; width: 100%; max-width: 520px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }
-        h1 { font-size: 20px; margin-bottom: 20px; text-align: center; color: #38bdf8; letter-spacing: 1px; }
-        .form-group { margin-bottom: 16px; }
-        label { display: block; margin-bottom: 6px; font-size: 13px; color: #94a3b8; }
-        input[type="file"], input[type="text"], textarea { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 14px; }
-        textarea { resize: vertical; height: 110px; }
-        button { width: 100%; padding: 14px; background: #0284c7; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        .container { background: #1e293b; padding: 25px; border-radius: 16px; width: 100%; max-width: 480px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }
+        h1 { font-size: 18px; margin-bottom: 15px; text-align: center; color: #38bdf8; letter-spacing: 1px; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; margin-bottom: 5px; font-size: 12px; color: #94a3b8; }
+        input[type="file"], input[type="text"], textarea { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 13px; }
+        textarea { resize: vertical; height: 80px; }
+        button { width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
         button:hover { background: #0369a1; }
         button:disabled { background: #475569; cursor: not-allowed; }
-        #status-box { margin-top: 20px; background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #334155; display: none; }
-        .step { display: flex; align-items: center; margin-bottom: 6px; font-size: 13px; color: #94a3b8; }
-        .step.active { color: #38bdf8; font-weight: bold; }
-        .step.done { color: #22c55e; }
-        #preview-container { margin-top: 20px; display: none; text-align: center; }
-        video { width: 100%; max-height: 350px; border-radius: 8px; background: #000; }
+        #preview-box { margin-top: 15px; display: none; text-align: center; position: relative; width: 100%; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 9/16; max-height: 400px; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .overlay-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-style: italic; font-size: 20px; font-weight: bold; text-align: center; width: 85%; text-shadow: 0 2px 8px rgba(0,0,0,0.9); z-index: 10; }
+        .watermark { position: absolute; bottom: 20px; left: 20px; color: rgba(255, 255, 255, 0.4); font-size: 14px; font-weight: bold; z-index: 10; animation: moveWatermark 6s ease-in-out infinite alternate; }
+        @keyframes moveWatermark {
+            0% { bottom: 20px; left: 20px; opacity: 0.3; }
+            100% { top: 20px; right: 20px; left: auto; bottom: auto; opacity: 0.6; }
+        }
+        #downloadArea { margin-top: 15px; text-align: center; display: none; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>TURAN MEDYA - VİDEO MOTORU</h1>
+        <h1>TURAN MEDYA - LVR MOTORU</h1>
         
         <div class="form-group">
-            <label>Sayfa / Filigran İsmi (Kayan Su İzi)</label>
+            <label>Kayan Filigran / Sayfa İsmi</label>
             <input type="text" id="watermarkText" value="@mehmetllyrics">
         </div>
 
         <div class="form-group">
-            <label>Şarkı Ses Dosyası (.mp3 / .wav)</label>
+            <label>Şarkı Ses Dosyası (.mp3)</label>
             <input type="file" id="audioFile" accept="audio/*">
         </div>
 
@@ -47,19 +50,16 @@ Mutlu musun sevgili yar
 Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         </div>
 
-        <button id="processBtn" onclick="generateVideoWithBackground()">VİDEOYU OLUŞTUR VE BİRLEŞTİR</button>
+        <button id="processBtn" onclick="generateLyricsVideo()">VİDEOYU OLUŞTUR VE BAĞLA</button>
 
-        <div id="status-box">
-            <div id="s1" class="step">⏳ 1. Supabase Havuz Bağlantısı Kuruluyor...</div>
-            <div id="s2" class="step">⏳ 2. Manzara Videosu Seçiliyor ve Yükleniyor...</div>
-            <div id="s3" class="step">✅ 3. İşlem Tamamlandı!</div>
+        <div id="preview-box">
+            <video id="bgVideo" autoplay muted loop playsinline></video>
+            <div id="lyricsDisplay" class="overlay-text">Sözler yükleniyor...</div>
+            <div id="watermarkDisplay" class="watermark">@mehmetllyrics</div>
         </div>
 
-        <div id="preview-container">
-            <label style="margin-bottom: 8px; color: #38bdf8; font-weight: bold;">Oluşturulan Video Önizlemesi:</label>
-            <video id="outputVideo" controls></video>
-            <br><br>
-            <a id="downloadBtn" style="display:inline-block; padding:12px 20px; background:#22c55e; color:#fff; text-decoration:none; border-radius:8px; font-weight:bold;">📥 Videoyu Cihaza İndir</a>
+        <div id="downloadArea">
+            <a id="downloadLink" style="display:inline-block; padding:12px 20px; background:#22c55e; color:#fff; text-decoration:none; border-radius:8px; font-weight:bold;">📥 Hazır Videoyu Cihaza İndir</a>
         </div>
     </div>
 
@@ -68,71 +68,55 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         const SUPABASE_KEY = "sb_publishable_6aGsT_Si7hu_S5bS66f6FA_Yx-Edpe_";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        async function generateVideoWithBackground() {
+        async function generateLyricsVideo() {
             const audioInput = document.getElementById('audioFile').files[0];
             const lyrics = document.getElementById('lyricsText').value.trim();
             const watermark = document.getElementById('watermarkText').value.trim();
 
-            if (!audioInput || !lyrics) {
-                alert("Lütfen ses dosyasını seçin ve sözleri girin!");
+            if (!lyrics) {
+                alert("Lütfen şarkı sözlerini girin!");
                 return;
             }
 
             const btn = document.getElementById('processBtn');
-            const box = document.getElementById('status-box');
             btn.disabled = true;
-            box.style.display = 'block';
+            btn.innerText = "Manzara Havuzdan Çekiliyor...";
 
             try {
-                document.getElementById('s1').classList.add('active');
-                await new Promise(r => setTimeout(r, 500));
-                document.getElementById('s1').classList.remove('active');
-                document.getElementById('s1').classList.add('done');
-
-                document.getElementById('s2').classList.add('active');
+                // Supabase'den gerçek dosyaları listeleyip çekme
+                const { data: files, error } = await supabaseClient.storage.from('manzaralar').list('', { limit: 100 });
                 
-                // Supabase havuzundaki senin yüklediğin dosyalardan doğrudan birini çekmeyi garantileyen güvenli yöntem
-                const { data: files, error } = await supabaseClient.storage.from('manzaralar').list(null, {
-                    limit: 100,
-                    offset: 0,
-                    sortBy: { column: 'name', order: 'asc' }
-                });
-
-                let videoUrl = "";
-                if (files && files.length > 0) {
-                    const validFiles = files.filter(f => f.name && f.name !== '.emptyfolder' && f.name.length > 3);
-                    if (validFiles.length > 0) {
-                        const randomFile = validFiles[Math.floor(Math.random() * validFiles.length)];
-                        const { data: pub } = supabaseClient.storage.from('manzaralar').getPublicUrl(randomFile.name);
-                        videoUrl = pub.publicUrl;
-                    }
+                if (error || !files || files.length === 0) {
+                    throw new Error("Supabase manzaralar klasöründe video bulunamadı!");
                 }
 
-                // Eğer listede takılırsa doğrudan ilk yüklediğin standart dosya adıyla köprü kur
-                if (!videoUrl) {
-                    videoUrl = `${SUPABASE_URL}/storage/v1/object/public/manzaralar/${files && files[0] ? files[0].name : 'video.mp4'}`;
-                }
+                const validFiles = files.filter(f => f.name && f.name !== '.emptyfolder');
+                const randomFile = validFiles[Math.floor(Math.random() * validFiles.length)];
+                const { data: pub } = supabaseClient.storage.from('manzaralar').getPublicUrl(randomFile.name);
 
-                await new Promise(r => setTimeout(r, 800));
-                document.getElementById('s2').classList.remove('active');
-                document.getElementById('s2').classList.add('done');
-
-                document.getElementById('s3').classList.add('active');
-
-                const videoElement = document.getElementById('outputVideo');
-                videoElement.src = videoUrl;
+                // Arayüze bağlama
+                const videoEl = document.getElementById('bgVideo');
+                videoEl.src = pub.publicUrl;
                 
-                document.getElementById('preview-container').style.display = 'block';
-                
-                const dlBtn = document.getElementById('downloadBtn');
-                dlBtn.href = videoUrl;
-                dlBtn.download = "turan-medya-lyrics.mp4";
+                document.getElementById('lyricsDisplay').innerText = lyrics.split('\n')[0] || lyrics;
+                document.getElementById('watermarkDisplay').innerText = watermark;
 
-                alert(`Başarılı! "${watermark}" filigranlı ve 9:16 formatlı video hazırlandı.`);
+                document.getElementById('preview-box').style.display = 'block';
+                
+                // İndirme linkini doğrudan geçerli video adresine bağlama
+                const dlLink = document.getElementById('downloadLink');
+                dlLink.href = pub.publicUrl;
+                dlLink.download = "turan-medya-lyrics.mp4";
+                document.getElementById('downloadArea').style.display = 'block';
+
+                btn.innerText = "VİDEOYU OLUŞTUR VE BAĞLA";
+                btn.disabled = false;
+                alert("Harika! Manzara videosu havuzdan çekildi, sözler ve kayan filigran giydirildi.");
 
             } catch (err) {
                 alert("Hata: " + err.message);
                 btn.disabled = false;
+                btn.innerText = "VİDEOYU OLUŞTUR VE BAĞLA";
             }
         }
     </script>
