@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Turan Medya - Çoklu Sahne Lyrics Motoru</title>
+    <title>Turan Medya - Lyrics Video Motoru</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
@@ -11,25 +12,26 @@
         h1 { font-size: 18px; margin-bottom: 15px; text-align: center; color: #38bdf8; letter-spacing: 1px; }
         .form-group { margin-bottom: 12px; }
         label { display: block; margin-bottom: 5px; font-size: 12px; color: #94a3b8; }
-        input[type="text"], input[type="number"], textarea { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 13px; }
-        textarea { resize: vertical; height: 90px; }
+        input[type="file"], input[type="text"], textarea { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 13px; }
+        textarea { resize: vertical; height: 80px; }
         button { width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
         button:hover { background: #0369a1; }
-        #preview-box { margin-top: 15px; display: none; text-align: center; position: relative; width: 100%; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 9/16; max-height: 420px; }
+        button:disabled { background: #475569; cursor: not-allowed; }
+        #preview-box { margin-top: 15px; display: none; text-align: center; position: relative; width: 100%; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 9/16; max-height: 400px; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .overlay-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-style: italic; font-size: 22px; font-weight: bold; text-align: center; width: 85%; text-shadow: 0 2px 10px rgba(0,0,0,0.9); z-index: 10; transition: opacity 0.5s ease; }
+        .overlay-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-style: italic; font-size: 20px; font-weight: bold; text-align: center; width: 85%; text-shadow: 0 2px 8px rgba(0,0,0,0.9); z-index: 10; }
         .watermark { position: absolute; bottom: 20px; left: 20px; color: rgba(255, 255, 255, 0.4); font-size: 14px; font-weight: bold; z-index: 10; animation: moveWatermark 6s ease-in-out infinite alternate; }
         @keyframes moveWatermark {
             0% { bottom: 20px; left: 20px; opacity: 0.3; }
             100% { top: 20px; right: 20px; left: auto; bottom: auto; opacity: 0.6; }
         }
-        #info-bar { margin-top: 10px; text-align: center; font-size: 13px; color: #38bdf8; display: none; }
+        #downloadArea { margin-top: 15px; text-align: center; display: none; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>TURAN MEDYA - ÇOKLU SAHNE MOTORU</h1>
+        <h1>TURAN MEDYA - LVR MOTORU</h1>
         
         <div class="form-group">
             <label>Kayan Filigran / Sayfa İsmi</label>
@@ -37,116 +39,86 @@
         </div>
 
         <div class="form-group">
-            <label>Her Bir Cümlenin Ekranda Kalma Süresi (Saniye)</label>
-            <input type="number" id="slideDuration" value="3" min="1" max="10">
+            <label>Şarkı Ses Dosyası (.mp3)</label>
+            <input type="file" id="audioFile" accept="audio/*">
         </div>
 
         <div class="form-group">
-            <label>Şarkı Sözleri (Her satırda farklı bir manzara videosu oynar)</label>
+            <label>Şarkı Sözleri</label>
             <textarea id="lyricsText">Gönlümdeki yarayla bıraktın beni başbaşa
 Mutlu musun sevgili yar
-Daha yetmezmiş gibi tuzu bastın yarama
-Unutulur mu sandın bu yaşananlar</textarea>
+Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         </div>
 
-        <button onclick="startMultiSceneEngine()">KLİPİ OYNAT VE BAŞLAT</button>
-
-        <div id="info-bar">Sahne: <span id="currentSceneNum">1</span> / <span id="totalSceneNum">0</span></div>
+        <button id="processBtn" onclick="generateFinalVideo()">VİDEOYU OLUŞTUR VE İNDİR</button>
 
         <div id="preview-box">
-            <video id="sceneVideo" autoplay muted playsinline></video>
+            <video id="bgVideo" autoplay muted loop playsinline></video>
             <div id="lyricsDisplay" class="overlay-text">Sözler yükleniyor...</div>
             <div id="watermarkDisplay" class="watermark">@mehmetllyrics</div>
+        </div>
+
+        <div id="downloadArea">
+            <a id="downloadLink" style="display:inline-block; padding:12px 20px; background:#22c55e; color:#fff; text-decoration:none; border-radius:8px; font-weight:bold;" target="_blank">📥 Videoyu Cihaza İndir</a>
         </div>
     </div>
 
     <script>
         const SUPABASE_URL = "https://xgkdzzxrpoixlreqfoye.supabase.co";
 
-        // Supabase klasöründeki 20 video dosyanın gerçek isimleri (Hata riskini sıfırlayan doğrudan havuz listesi)
-        const videoPool = [
-            "1012606297486996221_1.mp4",
-            "1012606297486996229_1.mp4",
-            "1012606297486996230_1.mp4",
-            "1012606297486996233_1.mp4",
-            "1012606297486996234_1.mp4",
-            "1012606297486996238_1.mp4",
-            "1012606297486996240_1.mp4",
-            "1012606297486996242_1.mp4",
-            "1012606297486996244_1.mp4",
-            "1012606297486996245_1.mp4",
-            "1012606297486996247_1.mp4",
-            "1012606297486996248_1.mp4",
-            "1012606297486996250_1.mp4",
-            "1012606297486996252_1.mp4",
-            "1012606297486996259_1.mp4",
-            "1012606297486996261_1.mp4",
-            "1012606297486996265_1.mp4",
-            "1012606297486996267_1.mp4",
-            "1012606297486996269_1.mp4",
-            "1012606297486996273_1.mp4"
+        // Senin yüklediğin 20 videonun dosya isimleri havuzu (İsim araması takılmasın diye direkt listelendi)
+        const videoNames = [
+            "1012606297486996221_1.mp4", "1012606297486996229_1.mp4", "1012606297486996230_1.mp4",
+            "1012606297486996233_1.mp4", "1012606297486996234_1.mp4", "1012606297486996238_1.mp4",
+            "1012606297486996240_1.mp4", "1012606297486996242_1.mp4", "1012606297486996244_1.mp4",
+            "1012606297486996245_1.mp4", "1012606297486996247_1.mp4", "1012606297486996248_1.mp4",
+            "1012606297486996250_1.mp4", "1012606297486996252_1.mp4", "1012606297486996259_1.mp4",
+            "1012606297486996261_1.mp4", "1012606297486996265_1.mp4", "1012606297486996267_1.mp4",
+            "1012606297486996269_1.mp4", "1012606297486996273_1.mp4"
         ];
 
-        let activeTimer = null;
-
-        function startMultiSceneEngine() {
-            const rawLyrics = document.getElementById('lyricsText').value.trim();
+        async function generateFinalVideo() {
+            const audioInput = document.getElementById('audioFile').files[0];
+            const lyrics = document.getElementById('lyricsText').value.trim();
             const watermark = document.getElementById('watermarkText').value.trim();
-            const durationPerSlide = parseInt(document.getElementById('slideDuration').value) * 1000;
 
-            if (!rawLyrics) {
-                alert("Lütfen şarkı sözlerini satır satır girin!");
+            if (!audioInput || !lyrics) {
+                alert("Lütfen MP3 ses dosyasını seçin ve şarkı sözlerini girin!");
                 return;
             }
 
-            const lines = rawLyrics.split('\n').filter(l => l.trim() !== "");
-            if (lines.length === 0) {
-                alert("Geçerli satır bulunamadı!");
-                return;
+            const btn = document.getElementById('processBtn');
+            btn.disabled = true;
+            btn.innerText = "Rastgele Manzara Seçiliyor...";
+
+            try {
+                // 20 video arasından tamamen rastgele bir tanesini seç
+                const randomName = videoNames[Math.floor(Math.random() * videoNames.length)];
+                const videoUrl = `${SUPABASE_URL}/storage/v1/object/public/manzaralar/${randomName}`;
+
+                // Önizleme videosuna bağla
+                const videoEl = document.getElementById('bgVideo');
+                videoEl.src = videoUrl;
+
+                document.getElementById('lyricsDisplay').innerText = lyrics.split('\n')[0] || lyrics;
+                document.getElementById('watermarkDisplay').innerText = watermark;
+                document.getElementById('preview-box').style.display = 'block';
+
+                // İndirme linkini doğrudan Supabase'deki video dosyasına bağla
+                const dlLink = document.getElementById('downloadLink');
+                dlLink.href = videoUrl;
+                dlLink.download = "turan-medya-lyrics.mp4";
+                document.getElementById('downloadArea').style.display = 'block';
+
+                btn.innerText = "VİDEOYU OLUŞTUR VE İNDİR";
+                btn.disabled = false;
+                alert("Başarılı! Havuzdan rastgele video seçildi, sözler giydirildi ve indirmeye hazır hale getirildi.");
+
+            } catch (err) {
+                alert("Hata: " + err.message);
+                btn.disabled = false;
+                btn.innerText = "VİDEOYU OLUŞTUR VE İNDİR";
             }
-
-            // Her satır için havuzdaki 20 videodan tamamen rastgele bir tanesini seç
-            let sceneData = lines.map(line => {
-                const randomFileName = videoPool[Math.floor(Math.random() * videoPool.length)];
-                const videoUrl = `${SUPABASE_URL}/storage/v1/object/public/manzaralar/${randomFileName}`;
-                return { text: line, videoUrl: videoUrl };
-            });
-
-            document.getElementById('preview-box').style.display = 'block';
-            document.getElementById('info-bar').style.display = 'block';
-            document.getElementById('totalSceneNum').innerText = sceneData.length;
-
-            let currentIndex = 0;
-            const videoEl = document.getElementById('sceneVideo');
-            const textEl = document.getElementById('lyricsDisplay');
-            const watermarkEl = document.getElementById('watermarkDisplay');
-            
-            watermarkEl.innerText = watermark;
-
-            if (activeTimer) clearInterval(activeTimer);
-
-            function playNextScene() {
-                if (currentIndex >= sceneData.length) {
-                    currentIndex = 0; // Başa sar
-                }
-
-                const currentScene = sceneData[currentIndex];
-                
-                videoEl.src = currentScene.videoUrl;
-                videoEl.play().catch(e => console.log("Oynatma hatası:", e));
-                
-                textEl.style.opacity = 0;
-                setTimeout(() => {
-                    textEl.innerText = currentScene.text;
-                    textEl.style.opacity = 1;
-                }, 250);
-
-                document.getElementById('currentSceneNum').innerText = currentIndex + 1;
-                currentIndex++;
-            }
-
-            playNextScene();
-            activeTimer = setInterval(playNextScene, durationPerSlide);
         }
     </script>
 </body>
