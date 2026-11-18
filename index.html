@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Turan Medya - Çoklu Sahne Lyrics Motoru</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
@@ -12,11 +11,10 @@
         h1 { font-size: 18px; margin-bottom: 15px; text-align: center; color: #38bdf8; letter-spacing: 1px; }
         .form-group { margin-bottom: 12px; }
         label { display: block; margin-bottom: 5px; font-size: 12px; color: #94a3b8; }
-        input[type="file"], input[type="text"], input[type="number"], textarea { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 13px; }
+        input[type="text"], input[type="number"], textarea { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 13px; }
         textarea { resize: vertical; height: 90px; }
         button { width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
         button:hover { background: #0369a1; }
-        button:disabled { background: #475569; cursor: not-allowed; }
         #preview-box { margin-top: 15px; display: none; text-align: center; position: relative; width: 100%; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 9/16; max-height: 420px; }
         video { width: 100%; height: 100%; object-fit: cover; }
         .overlay-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-style: italic; font-size: 22px; font-weight: bold; text-align: center; width: 85%; text-shadow: 0 2px 10px rgba(0,0,0,0.9); z-index: 10; transition: opacity 0.5s ease; }
@@ -51,7 +49,7 @@ Daha yetmezmiş gibi tuzu bastın yarama
 Unutulur mu sandın bu yaşananlar</textarea>
         </div>
 
-        <button id="processBtn" onclick="startMultiSceneEngine()">KLİPİ OYNAT VE BAŞLAT</button>
+        <button onclick="startMultiSceneEngine()">KLİPİ OYNAT VE BAŞLAT</button>
 
         <div id="info-bar">Sahne: <span id="currentSceneNum">1</span> / <span id="totalSceneNum">0</span></div>
 
@@ -64,12 +62,34 @@ Unutulur mu sandın bu yaşananlar</textarea>
 
     <script>
         const SUPABASE_URL = "https://xgkdzzxrpoixlreqfoye.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_6aGsT_Si7hu_S5bS66f6FA_Yx-Edpe_";
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Supabase klasöründeki 20 video dosyanın gerçek isimleri (Hata riskini sıfırlayan doğrudan havuz listesi)
+        const videoPool = [
+            "1012606297486996221_1.mp4",
+            "1012606297486996229_1.mp4",
+            "1012606297486996230_1.mp4",
+            "1012606297486996233_1.mp4",
+            "1012606297486996234_1.mp4",
+            "1012606297486996238_1.mp4",
+            "1012606297486996240_1.mp4",
+            "1012606297486996242_1.mp4",
+            "1012606297486996244_1.mp4",
+            "1012606297486996245_1.mp4",
+            "1012606297486996247_1.mp4",
+            "1012606297486996248_1.mp4",
+            "1012606297486996250_1.mp4",
+            "1012606297486996252_1.mp4",
+            "1012606297486996259_1.mp4",
+            "1012606297486996261_1.mp4",
+            "1012606297486996265_1.mp4",
+            "1012606297486996267_1.mp4",
+            "1012606297486996269_1.mp4",
+            "1012606297486996273_1.mp4"
+        ];
 
         let activeTimer = null;
 
-        async function startMultiSceneEngine() {
+        function startMultiSceneEngine() {
             const rawLyrics = document.getElementById('lyricsText').value.trim();
             const watermark = document.getElementById('watermarkText').value.trim();
             const durationPerSlide = parseInt(document.getElementById('slideDuration').value) * 1000;
@@ -85,76 +105,48 @@ Unutulur mu sandın bu yaşananlar</textarea>
                 return;
             }
 
-            const btn = document.getElementById('processBtn');
-            btn.disabled = true;
-            btn.innerText = "Manzara Havuzu Taranıyor...";
+            // Her satır için havuzdaki 20 videodan tamamen rastgele bir tanesini seç
+            let sceneData = lines.map(line => {
+                const randomFileName = videoPool[Math.floor(Math.random() * videoPool.length)];
+                const videoUrl = `${SUPABASE_URL}/storage/v1/object/public/manzaralar/${randomFileName}`;
+                return { text: line, videoUrl: videoUrl };
+            });
 
-            try {
-                // Supabase havuzundaki tüm videoları çek
-                const { data: files, error } = await supabaseClient.storage.from('manzaralar').list('', { limit: 100 });
-                
-                if (error || !files || files.length === 0) {
-                    throw new Error("Supabase 'manzaralar' klasöründe video bulunamadı!");
+            document.getElementById('preview-box').style.display = 'block';
+            document.getElementById('info-bar').style.display = 'block';
+            document.getElementById('totalSceneNum').innerText = sceneData.length;
+
+            let currentIndex = 0;
+            const videoEl = document.getElementById('sceneVideo');
+            const textEl = document.getElementById('lyricsDisplay');
+            const watermarkEl = document.getElementById('watermarkDisplay');
+            
+            watermarkEl.innerText = watermark;
+
+            if (activeTimer) clearInterval(activeTimer);
+
+            function playNextScene() {
+                if (currentIndex >= sceneData.length) {
+                    currentIndex = 0; // Başa sar
                 }
 
-                const videoFiles = files.filter(f => f.name && f.name !== '.emptyfolder' && f.name.includes('.'));
-                if (videoFiles.length === 0) throw new Error("Klasörde geçerli video yok!");
-
-                // Her satır için havuzdan rastgele video URL'leri hazırla
-                let sceneData = lines.map(line => {
-                    const randomFile = videoFiles[Math.floor(Math.random() * videoFiles.length)];
-                    const { data: pub } = supabaseClient.storage.from('manzaralar').getPublicUrl(randomFile.name);
-                    return { text: line, videoUrl: pub.publicUrl };
-                });
-
-                document.getElementById('preview-box').style.display = 'block';
-                document.getElementById('info-bar').style.display = 'block';
-                document.getElementById('totalSceneNum').innerText = sceneData.length;
-
-                let currentIndex = 0;
-                const videoEl = document.getElementById('sceneVideo');
-                const textEl = document.getElementById('lyricsDisplay');
-                const watermarkEl = document.getElementById('watermarkDisplay');
+                const currentScene = sceneData[currentIndex];
                 
-                watermarkEl.innerText = watermark;
+                videoEl.src = currentScene.videoUrl;
+                videoEl.play().catch(e => console.log("Oynatma hatası:", e));
+                
+                textEl.style.opacity = 0;
+                setTimeout(() => {
+                    textEl.innerText = currentScene.text;
+                    textEl.style.opacity = 1;
+                }, 250);
 
-                if (activeTimer) clearInterval(activeTimer);
-
-                function playNextScene() {
-                    if (currentIndex >= sceneData.length) {
-                        currentIndex = 0; // Döngüye sokmak istersen baştan başlatır
-                    }
-
-                    const currentScene = sceneData[currentIndex];
-                    
-                    // Videoyu ve yazıyı güncelle
-                    videoEl.src = currentScene.videoUrl;
-                    videoEl.play().catch(e => console.log("Oynatma hatası:", e));
-                    
-                    textEl.style.opacity = 0;
-                    setTimeout(() => {
-                        textEl.innerText = currentScene.text;
-                        textEl.style.opacity = 1;
-                    }, 250);
-
-                    document.getElementById('currentSceneNum').innerText = currentIndex + 1;
-                    currentIndex++;
-                }
-
-                // İlk sahneyi hemen oynat
-                playNextScene();
-
-                // Belirttiğin süreye göre sahneleri değiştir
-                activeTimer = setInterval(playNextScene, durationPerSlide);
-
-                btn.innerText = "KLİPİ OYNAT VE BAŞLAT";
-                btn.disabled = false;
-
-            } catch (err) {
-                alert("Hata: " + err.message);
-                btn.disabled = false;
-                btn.innerText = "KLİPİ OYNAT VE BAŞLAT";
+                document.getElementById('currentSceneNum').innerText = currentIndex + 1;
+                currentIndex++;
             }
+
+            playNextScene();
+            activeTimer = setInterval(playNextScene, durationPerSlide);
         }
     </script>
 </body>
