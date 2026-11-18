@@ -304,7 +304,6 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
       if (ffmpegReady) return;
       if (!FFmpegClass) throw new Error('FFmpeg arayüzü yüklenemedi. CDN engellenmiş olabilir; internet bağlantısını veya tarayıcı eklentilerini kontrol et.');
 
-      const ffBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd';
       const coreBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
 
       try {
@@ -323,12 +322,13 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         log('ffmpeg-core.wasm indiriliyor; bu dosya büyük olduğu için biraz sürebilir.');
         const wasmURL = await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm');
 
-        setStatus('FFmpeg Worker hazırlanıyor...', 6);
-        log('814.ffmpeg.js Worker indiriliyor.');
-        const classWorkerURL = await toBlobURL(`${ffBase}/814.ffmpeg.js`, 'text/javascript');
-
+        // UMD paketi kendi 814.ffmpeg.js worker dosyasını CDN üzerinden
+        // çözer. Worker dosyasını ayrıca blob: URL'ye çevirmek, worker içindeki
+        // dinamik modül importunu bozup "Cannot find module blob:..." hatası
+        // oluşturabiliyor. Bu nedenle classWorkerURL vermiyoruz.
         setStatus('FFmpeg motoru başlatılıyor...', 7);
-        await ffmpeg.load({ coreURL, wasmURL, classWorkerURL });
+        log('FFmpeg kendi UMD Worker dosyasını yükleyecek.');
+        await ffmpeg.load({ coreURL, wasmURL });
 
         ffmpegReady = true;
         log('FFmpeg hazır.');
