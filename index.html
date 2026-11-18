@@ -191,18 +191,47 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
 
       const allFiles = [];
       const pageSize = 500;
+
+      // Storage list() sonucundaki dosyaları id alanına göre eleme:
+      // Bazı Storage yanıtlarında id null gelebilir. Dosya olup olmadığını
+      // uzantı ve metadata üzerinden belirlemek daha güvenlidir.
       for (let offset = 0; offset < 5000; offset += pageSize) {
         const { data, error } = await supabaseClient.storage
           .from(BUCKET_NAME)
-          .list('', { limit: pageSize, offset, sortBy: { column: 'name', order: 'asc' } });
-        if (error) throw new Error(`Supabase dosya listesi alınamadı: ${error.message}`);
-        const page = data || [];
-        allFiles.push(...page.filter(file => file && file.id !== null && file.name));
+          .list('', {
+            limit: pageSize,
+            offset,
+            sortBy: { column: 'name', order: 'asc' }
+          });
+
+        if (error) {
+          throw new Error(`Supabase dosya listesi alınamadı: ${error.message}`);
+        }
+
+        const page = Array.isArray(data) ? data : [];
+        allFiles.push(...page.filter(item => item && typeof item.name === 'string' && item.name.length));
+
         if (page.length < pageSize) break;
       }
 
-      const valid = allFiles.filter(file => /\.(mp4|webm|mov|m4v)$/i.test(file.name));
-      if (!valid.length) throw new Error(`'${BUCKET_NAME}' bucket'ının kök dizininde MP4, WEBM, MOV veya M4V video bulunamadı.`);
+      // Yalnızca desteklenen video uzantılarını al; klasör kayıtları
+      // bu uzantılara sahip olmadıkları için otomatik olarak dışarıda kalır.
+      const valid = allFiles.filter(file =>
+        /\.(mp4|webm|mov|m4v)$/i.test(file.name)
+      );
+
+      console.log('[TURAN MEDYA] Supabase liste yanıtı:', allFiles);
+      console.log('[TURAN MEDYA] Bulunan video dosyaları:', valid);
+
+      if (!valid.length) {
+        const names = allFiles.slice(0, 15).map(file => file.name).join(', ');
+        throw new Error(
+          `'${BUCKET_NAME}' bucket'ı listelendi ancak desteklenen video bulunamadı. ` +
+          `Dönen kayıt sayısı: ${allFiles.length}. İlk kayıtlar: ${names || '(boş)'}. ` +
+          `Dosyalar kök dizinde değilse bir klasör içindeler; videoları bucket köküne taşı veya klasör yolunu belirt.`
+        );
+      }
+
       cachedPool = valid;
       return valid;
     }
