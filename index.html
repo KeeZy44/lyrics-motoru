@@ -50,7 +50,7 @@ Mutlu musun sevgili yar
 Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         </div>
 
-        <button id="processBtn" onclick="generateLyricsVideo()">VİDEOYU OLUŞTUR VE BAĞLA</button>
+        <button id="processBtn" onclick="generateRandomLyricsVideo()">RASTGELE VİDEO SEÇ VE GÖSTER</button>
 
         <div id="preview-box">
             <video id="bgVideo" autoplay muted loop playsinline></video>
@@ -59,7 +59,7 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         </div>
 
         <div id="downloadArea">
-            <a id="downloadLink" style="display:inline-block; padding:12px 20px; background:#22c55e; color:#fff; text-decoration:none; border-radius:8px; font-weight:bold;">📥 Hazır Videoyu Cihaza İndir</a>
+            <a id="downloadLink" style="display:inline-block; padding:12px 20px; background:#22c55e; color:#fff; text-decoration:none; border-radius:8px; font-weight:bold;" target="_blank">📥 Videoyu Doğrudan İndir</a>
         </div>
     </div>
 
@@ -68,8 +68,7 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         const SUPABASE_KEY = "sb_publishable_6aGsT_Si7hu_S5bS66f6FA_Yx-Edpe_";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        async function generateLyricsVideo() {
-            const audioInput = document.getElementById('audioFile').files[0];
+        async function generateRandomLyricsVideo() {
             const lyrics = document.getElementById('lyricsText').value.trim();
             const watermark = document.getElementById('watermarkText').value.trim();
 
@@ -80,43 +79,55 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
 
             const btn = document.getElementById('processBtn');
             btn.disabled = true;
-            btn.innerText = "Manzara Havuzdan Çekiliyor...";
+            btn.innerText = "20 Video Taranıyor ve Seçiliyor...";
 
             try {
-                // Supabase'den gerçek dosyaları listeleyip çekme
+                // Supabase manzaralar klasöründeki tüm dosyaları listele
                 const { data: files, error } = await supabaseClient.storage.from('manzaralar').list('', { limit: 100 });
                 
                 if (error || !files || files.length === 0) {
-                    throw new Error("Supabase manzaralar klasöründe video bulunamadı!");
+                    throw new Error("Supabase 'manzaralar' klasöründe video bulunamadı!");
                 }
 
-                const validFiles = files.filter(f => f.name && f.name !== '.emptyfolder');
-                const randomFile = validFiles[Math.floor(Math.random() * validFiles.length)];
-                const { data: pub } = supabaseClient.storage.from('manzaralar').getPublicUrl(randomFile.name);
+                // Sadece geçerli video dosyalarını filtrele (uzantısı ne olursa olsun)
+                const videoFiles = files.filter(f => f.name && f.name !== '.emptyfolder' && f.name.includes('.'));
+                
+                if (videoFiles.length === 0) {
+                    throw new Error("Klasörde geçerli video bulunamadı!");
+                }
 
-                // Arayüze bağlama
+                // 20 video arasından tamamen RASTGELE bir tanesini seç!
+                const randomIndex = Math.floor(Math.random() * videoFiles.length);
+                const selectedVideo = videoFiles[randomIndex];
+
+                // Seçilen videonun public linkini al
+                const { data: pub } = supabaseClient.storage.from('manzaralar').getPublicUrl(selectedVideo.name);
+                const videoRealUrl = pub.publicUrl;
+
+                // Arayüze, önizlemeye ve yazı/filigran katmanına bağla
                 const videoEl = document.getElementById('bgVideo');
-                videoEl.src = pub.publicUrl;
+                videoEl.src = videoRealUrl;
                 
                 document.getElementById('lyricsDisplay').innerText = lyrics.split('\n')[0] || lyrics;
                 document.getElementById('watermarkDisplay').innerText = watermark;
 
                 document.getElementById('preview-box').style.display = 'block';
                 
-                // İndirme linkini doğrudan geçerli video adresine bağlama
+                // İndirme linkini seçilen rastgele videoya bağla
                 const dlLink = document.getElementById('downloadLink');
-                dlLink.href = pub.publicUrl;
-                dlLink.download = "turan-medya-lyrics.mp4";
+                dlLink.href = videoRealUrl;
+                dlLink.download = selectedVideo.name;
+
                 document.getElementById('downloadArea').style.display = 'block';
 
-                btn.innerText = "VİDEOYU OLUŞTUR VE BAĞLA";
+                btn.innerText = "RASTGELE VİDEO SEÇ VE GÖSTER";
                 btn.disabled = false;
-                alert("Harika! Manzara videosu havuzdan çekildi, sözler ve kayan filigran giydirildi.");
+                alert(`Harika! 20 video arasından rastgele biri seçildi ve ekrana yansıtıldı.`);
 
             } catch (err) {
                 alert("Hata: " + err.message);
                 btn.disabled = false;
-                btn.innerText = "VİDEOYU OLUŞTUR VE BAĞLA";
+                btn.innerText = "RASTGELE VİDEO SEÇ VE GÖSTER";
             }
         }
     </script>
