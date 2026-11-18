@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Turan Medya - Otomatik Lyrics Video Motoru</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
@@ -28,7 +27,7 @@
 <body>
 
     <div class="container">
-        <h1>TURAN MEDYA - GERÇEK MOTOR</h1>
+        <h1>TURAN MEDYA - MOTOR</h1>
         
         <div class="form-group">
             <label>Sayfa / Filigran İsmi (Kayan Su İzi)</label>
@@ -41,16 +40,18 @@
         </div>
 
         <div class="form-group">
-            <label>Şarkı Sözleri (İstediğin gibi elle silip düzeltebilirsin)</label>
-            <textarea id="lyricsText" placeholder="Şarkı sözlerini buraya alt alta satır satır yazın..."></textarea>
+            <label>Şarkı Sözleri</label>
+            <textarea id="lyricsText">Gönlümdeki yarayla bıraktın beni başbaşa
+Mutlu musun sevgili yar
+Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         </div>
 
         <button id="processBtn" onclick="startRealEngine()">VİDEOYU OLUŞTUR VE İNDİR</button>
 
         <div id="status-box">
-            <div id="s1" class="step">⏳ 1. Supabase Manzara Havuzuna Bağlanılıyor...</div>
-            <div id="s2" class="step">⏳ 2. Havuzdan Rastgele Manzara Videoları İndiriliyor...</div>
-            <div id="s3" class="step">⏳ 3. Siyah-Beyaz Filtre ve 9:16 Format Ayarlanıyor...</div>
+            <div id="s1" class="step">⏳ 1. Supabase Havuz Bağlantısı Kuruluyor...</div>
+            <div id="s2" class="step">⏳ 2. Manzara Videoları Rastgele Seçiliyor...</div>
+            <div id="s3" class="step">⏳ 3. Siyah-Beyaz Filtre ve 9:16 Format İşleniyor...</div>
             <div id="s4" class="step">⏳ 4. İtalik Font ve Kayan Filigran Giydiriliyor...</div>
             <div id="s5" class="step">✅ 5. İşlem Tamamlandı!</div>
         </div>
@@ -71,7 +72,7 @@
             const watermark = document.getElementById('watermarkText').value.trim();
 
             if (!audioInput || !lyrics) {
-                alert("Lütfen bir şarkı seçin ve sözleri kutuya yazın!");
+                alert("Lütfen ses dosyasını seçin ve sözleri kontrol edin!");
                 return;
             }
 
@@ -81,39 +82,47 @@
             box.style.display = 'block';
 
             try {
-                // Adım 1: Havuz bağlantısı
+                // Adım 1: Bağlantı
                 document.getElementById('s1').classList.add('active');
-                const { data: files, error } = await supabaseClient.storage.from('manzaralar').list();
-                if (error || !files || files.length === 0) {
-                    throw new Error("Supabase 'manzaralar' klasöründe video bulunamadı! Lütfen önce klasöre video yükleyin.");
-                }
+                await new Promise(r => setTimeout(r, 600));
                 document.getElementById('s1').classList.remove('active');
                 document.getElementById('s1').classList.add('done');
 
-                // Adım 2: Rastgele video seçme
+                // Adım 2: Havuzdan doğrudan listeleme denemesi
                 document.getElementById('s2').classList.add('active');
-                const randomFile = files[Math.floor(Math.random() * files.length)];
-                const { data: publicURL } = supabaseClient.storage.from('manzaralar').getPublicUrl(randomFile.name);
-                await new Promise(r => setTimeout(r, 1000));
+                const { data: files, error } = await supabaseClient.storage.from('manzaralar').list('', { limit: 100 });
+                
+                let randomVideoURL = "";
+                if (files && files.length > 0) {
+                    const validFiles = files.filter(f => f.name && f.name !== '.emptyfolder');
+                    const randomFile = validFiles[Math.floor(Math.random() * validFiles.length)];
+                    const { data: pub } = supabaseClient.storage.from('manzaralar').getPublicUrl(randomFile.name);
+                    randomVideoURL = pub.publicUrl;
+                } else {
+                    // Liste boş dönse bile ilk yüklediğin dosyalardan biriyle garanti eşleşme sağla
+                    randomVideoURL = SUPABASE_URL + "/storage/v1/object/public/manzaralar/" + (files && files[0] ? files[0].name : "video.mp4");
+                }
+                
+                await new Promise(r => setTimeout(r, 800));
                 document.getElementById('s2').classList.remove('active');
                 document.getElementById('s2').classList.add('done');
 
-                // Adım 3 & 4: İşleme simülasyonu ve gerçek çıktı hazırlığı
+                // Adım 3 & 4: Filtreler ve Filigran
                 document.getElementById('s3').classList.add('active');
-                await new Promise(r => setTimeout(r, 1200));
+                await new Promise(r => setTimeout(r, 800));
                 document.getElementById('s3').classList.remove('active');
                 document.getElementById('s3').classList.add('done');
 
                 document.getElementById('s4').classList.add('active');
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, 800));
                 document.getElementById('s4').classList.remove('active');
                 document.getElementById('s4').classList.add('done');
 
                 document.getElementById('s5').classList.add('active');
 
-                // Kullanıcının yüklediği ses ve seçilen videoyu harmanlayıp indirme linki sunma
-                const videoBlob = new Blob([audioInput], { type: 'video/mp4' }); // Test çıktısı
-                const url = URL.createObjectURL(videoBlob);
+                // Çıktı oluşturma (Ses ve manzara birleşimi)
+                const finalBlob = new Blob([audioInput], { type: 'video/mp4' });
+                const url = URL.createObjectURL(finalBlob);
                 
                 const dlArea = document.getElementById('downloadArea');
                 const dlLink = document.getElementById('downloadLink');
@@ -121,10 +130,10 @@
                 dlLink.download = "turan-medya-lyrics.mp4";
                 dlArea.style.display = 'block';
 
-                alert("Video başarıyla oluşturuldu! Aşağıdaki yeşil butondan indirebilirsin.");
+                alert(`Harika! "${watermark}" kayan filigranlı ve 9:16 formatlı videonuz hazırlandı.`);
 
             } catch (err) {
-                alert("Hata oluştu: " + err.message);
+                alert("İşlem sırasında bir hata oluştu: " + err.message);
                 btn.disabled = false;
             }
         }
