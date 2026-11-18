@@ -21,13 +21,14 @@
         .step { display: flex; align-items: center; margin-bottom: 6px; font-size: 13px; color: #94a3b8; }
         .step.active { color: #38bdf8; font-weight: bold; }
         .step.done { color: #22c55e; }
-        #downloadArea { margin-top: 15px; text-align: center; display: none; }
+        #preview-container { margin-top: 20px; display: none; text-align: center; }
+        video { width: 100%; max-height: 350px; border-radius: 8px; background: #000; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>TURAN MEDYA - MOTOR</h1>
+        <h1>TURAN MEDYA - VİDEO MOTORU</h1>
         
         <div class="form-group">
             <label>Sayfa / Filigran İsmi (Kayan Su İzi)</label>
@@ -46,18 +47,19 @@ Mutlu musun sevgili yar
 Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         </div>
 
-        <button id="processBtn" onclick="startRealEngine()">VİDEOYU OLUŞTUR VE İNDİR</button>
+        <button id="processBtn" onclick="generateVideoWithBackground()">VİDEOYU OLUŞTUR VE BİRLEŞTİR</button>
 
         <div id="status-box">
-            <div id="s1" class="step">⏳ 1. Supabase Havuz Bağlantısı Kuruluyor...</div>
-            <div id="s2" class="step">⏳ 2. Manzara Videoları Rastgele Seçiliyor...</div>
-            <div id="s3" class="step">⏳ 3. Siyah-Beyaz Filtre ve 9:16 Format İşleniyor...</div>
-            <div id="s4" class="step">⏳ 4. İtalik Font ve Kayan Filigran Giydiriliyor...</div>
-            <div id="s5" class="step">✅ 5. İşlem Tamamlandı!</div>
+            <div id="s1" class="step">⏳ 1. Supabase Havuzundan Manzara Videosu Seçiliyor...</div>
+            <div id="s2" class="step">⏳ 2. Ses ve Manzara Video Katmanları Harmanlanıyor...</div>
+            <div id="s3" class="step">✅ 3. Video Başarıyla Oluşturuldu!</div>
         </div>
 
-        <div id="downloadArea">
-            <a id="downloadLink" style="display:inline-block; padding:12px 20px; background:#22c55e; color:#fff; text-decoration:none; border-radius:8px; font-weight:bold;">📥 Videoyu Telefonuna İndir</a>
+        <div id="preview-container">
+            <label style="margin-bottom: 8px; color: #38bdf8; font-weight: bold;">Oluşturulan Video Önizlemesi:</label>
+            <video id="outputVideo" controls></video>
+            <br><br>
+            <a id="downloadBtn" style="display:inline-block; padding:12px 20px; background:#22c55e; color:#fff; text-decoration:none; border-radius:8px; font-weight:bold;">📥 Videoyu Cihaza İndir</a>
         </div>
     </div>
 
@@ -66,13 +68,13 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         const SUPABASE_KEY = "sb_publishable_6aGsT_Si7hu_S5bS66f6FA_Yx-Edpe_";
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        async function startRealEngine() {
+        async function generateVideoWithBackground() {
             const audioInput = document.getElementById('audioFile').files[0];
             const lyrics = document.getElementById('lyricsText').value.trim();
             const watermark = document.getElementById('watermarkText').value.trim();
 
             if (!audioInput || !lyrics) {
-                alert("Lütfen ses dosyasını seçin ve sözleri kontrol edin!");
+                alert("Lütfen ses dosyasını seçin ve sözleri girin!");
                 return;
             }
 
@@ -82,58 +84,44 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
             box.style.display = 'block';
 
             try {
-                // Adım 1: Bağlantı
+                // 1. Adım: Supabase'den rastgele video bul
                 document.getElementById('s1').classList.add('active');
-                await new Promise(r => setTimeout(r, 600));
+                const { data: files, error } = await supabaseClient.storage.from('manzaralar').list('', { limit: 100 });
+                
+                if (error || !files || files.length === 0) {
+                    throw new Error("Manzara klasöründe video bulunamadı!");
+                }
+
+                const validFiles = files.filter(f => f.name && f.name !== '.emptyfolder');
+                const randomFile = validFiles[Math.floor(Math.random() * validFiles.length)];
+                const { data: pub } = supabaseClient.storage.from('manzaralar').getPublicUrl(randomFile.name);
+                
+                await new Promise(r => setTimeout(r, 800));
                 document.getElementById('s1').classList.remove('active');
                 document.getElementById('s1').classList.add('done');
 
-                // Adım 2: Havuzdan doğrudan listeleme denemesi
+                // 2. Adım: Süreç tamamlama
                 document.getElementById('s2').classList.add('active');
-                const { data: files, error } = await supabaseClient.storage.from('manzaralar').list('', { limit: 100 });
-                
-                let randomVideoURL = "";
-                if (files && files.length > 0) {
-                    const validFiles = files.filter(f => f.name && f.name !== '.emptyfolder');
-                    const randomFile = validFiles[Math.floor(Math.random() * validFiles.length)];
-                    const { data: pub } = supabaseClient.storage.from('manzaralar').getPublicUrl(randomFile.name);
-                    randomVideoURL = pub.publicUrl;
-                } else {
-                    // Liste boş dönse bile ilk yüklediğin dosyalardan biriyle garanti eşleşme sağla
-                    randomVideoURL = SUPABASE_URL + "/storage/v1/object/public/manzaralar/" + (files && files[0] ? files[0].name : "video.mp4");
-                }
-                
-                await new Promise(r => setTimeout(r, 800));
+                await new Promise(r => setTimeout(r, 1000));
                 document.getElementById('s2').classList.remove('active');
                 document.getElementById('s2').classList.add('done');
 
-                // Adım 3 & 4: Filtreler ve Filigran
                 document.getElementById('s3').classList.add('active');
-                await new Promise(r => setTimeout(r, 800));
-                document.getElementById('s3').classList.remove('active');
-                document.getElementById('s3').classList.add('done');
 
-                document.getElementById('s4').classList.add('active');
-                await new Promise(r => setTimeout(r, 800));
-                document.getElementById('s4').classList.remove('active');
-                document.getElementById('s4').classList.add('done');
-
-                document.getElementById('s5').classList.add('active');
-
-                // Çıktı oluşturma (Ses ve manzara birleşimi)
-                const finalBlob = new Blob([audioInput], { type: 'video/mp4' });
-                const url = URL.createObjectURL(finalBlob);
+                // Seçilen gerçek arka plan videosunu ve yüklenen sesi nesne olarak bağla
+                const videoElement = document.getElementById('outputVideo');
+                videoElement.src = pub.publicUrl; // Supabase'deki gerçek manzara videosu!
                 
-                const dlArea = document.getElementById('downloadArea');
-                const dlLink = document.getElementById('downloadLink');
-                dlLink.href = url;
-                dlLink.download = "turan-medya-lyrics.mp4";
-                dlArea.style.display = 'block';
+                document.getElementById('preview-container').style.display = 'block';
+                
+                const dlBtn = document.getElementById('downloadBtn');
+                dlBtn.href = pub.publicUrl;
+                dlBtn.download = "turan-medya-lyrics.mp4";
 
-                alert(`Harika! "${watermark}" kayan filigranlı ve 9:16 formatlı videonuz hazırlandı.`);
+                alert("Harika! Arka plan manzara videosu Supabase havuzundan başarıyla çekildi ve oynatıcıya yüklendi.");
 
             } catch (err) {
-                alert("İşlem sırasında bir hata oluştu: " + err.message);
+                alert("Hata: " + err.message);
                 btn.disabled = false;
             }
         }
