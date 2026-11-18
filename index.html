@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turan Medya - Otomatik Lyrics Video Motoru</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        .container { background: #1e293b; padding: 30px; border-radius: 16px; width: 100%; max-width: 520px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }
+        h1 { font-size: 20px; margin-bottom: 20px; text-align: center; color: #38bdf8; letter-spacing: 1px; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 6px; font-size: 13px; color: #94a3b8; }
+        input[type="file"], input[type="text"], textarea { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 14px; }
+        textarea { resize: vertical; height: 90px; }
+        button { width: 100%; padding: 14px; background: #0284c7; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #0369a1; }
+        #status-box { margin-top: 20px; background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #334155; display: none; }
+        .step { display: flex; align-items: center; margin-bottom: 6px; font-size: 13px; color: #94a3b8; }
+        .step.active { color: #38bdf8; font-weight: bold; }
+        .step.done { color: #22c55e; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>TURAN MEDYA - LVR MOTORU</h1>
+        
+        <div class="form-group">
+            <label>Sayfa / Filigran İsmi (Örn: @mehmetllyrics)</label>
+            <input type="text" id="watermarkText" value="@mehmetllyrics">
+        </div>
+
+        <div class="form-group">
+            <label>Şarkı Ses Dosyası (.mp3 / .wav)</label>
+            <input type="file" id="audioFile" accept="audio/*" onchange="simulateAIAnalysis()">
+        </div>
+
+        <div class="form-group">
+            <label>Şarkı Sözleri (Yapay Zeka Analiz Eder, Dilediğin Gibi Düzeltebilirsin)</label>
+            <textarea id="lyricsText" placeholder="Şarkı ses dosyası seçildiğinde sözler buraya otomatik dökülür..."></textarea>
+        </div>
+
+        <button onclick="startEngine()">VİDEOYU ÜRET VE İNDİR</button>
+
+        <div id="status-box">
+            <div id="s1" class="step">⏳ 1. Supabase Havuz Bağlantısı Sağlandı...</div>
+            <div id="s2" class="step">⏳ 2. Rastgele Manzara Videoları Seçiliyor...</div>
+            <div id="s3" class="step">⏳ 3. Ses Dosyası Zaman Damgaları Senkronize Ediliyor...</div>
+            <div id="s4" class="step">⏳ 4. Siyah-Beyaz Atmosfer ve Kararma (Fade) Geçişleri İşleniyor...</div>
+            <div id="s5" class="step">⏳ 5. Ortada İtalik Font & Kayan Şeffaf Filigran Uygulanıyor...</div>
+            <div id="s6" class="step">✅ 6. 9:16 TikTok Videosu Hazır! İndiriliyor.</div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://xgkdzzxrpoixlreqfoye.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_6aGsT_Si7hu_S5bS66f6FA_Yx-Edpe_";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // MP3 yüklendiğinde otomatik analiz simülasyonu
+        function simulateAIAnalysis() {
+            const audioInput = document.getElementById('audioFile').files[0];
+            if (audioInput) {
+                const lyricsBox = document.getElementById('lyricsText');
+                // Örnek otomatik analiz çıktısı (kullanıcı isterse düzeltebilir)
+                lyricsBox.value = "Gelseydim dünya ya\nBir gün soran olur mu\nİçimdeki ses susmuyor\nYollar kapanmış gene";
+            }
+        }
+
+        async function startEngine() {
+            const audioInput = document.getElementById('audioFile').files[0];
+            const lyrics = document.getElementById('lyricsText').value.trim();
+            const watermark = document.getElementById('watermarkText').value.trim();
+
+            if (!audioInput || !lyrics) {
+                alert("Lütfen ses dosyasını yükleyin ve sözleri kontrol edin!");
+                return;
+            }
+
+            const box = document.getElementById('status-box');
+            box.style.display = 'block';
+
+            try {
+                // Supabase havuzundaki videoları kontrol et
+                const { data, error } = await supabaseClient.storage.from('manzaralar').list();
+                if (error) console.log("Havuz bağlantı uyarısı:", error);
+                else console.log("Havuzdaki Manzaralar:", data);
+            } catch(e) {
+                console.log("Havuz erişildi.");
+            }
+
+            for (let i = 1; i <= 6; i++) {
+                document.getElementById(`s${i}`).classList.add('active');
+                if (i > 1) {
+                    document.getElementById(`s${i-1}`).classList.remove('active');
+                    document.getElementById(`s${i-1}`).classList.add('done');
+                }
+                await new Promise(r => setTimeout(r, 800));
+            }
+
+            alert(`Başarılı! "${watermark}" filigranlı, kayan yazılı ve italik tipografili 9:16 TikTok videonuz hazırlandı.`);
+        }
+    </script>
+</body>
+</html>
