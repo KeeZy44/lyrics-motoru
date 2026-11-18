@@ -1,125 +1,527 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Turan Medya - Lyrics Video Motoru</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-        .container { background: #1e293b; padding: 25px; border-radius: 16px; width: 100%; max-width: 480px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; }
-        h1 { font-size: 18px; margin-bottom: 15px; text-align: center; color: #38bdf8; letter-spacing: 1px; }
-        .form-group { margin-bottom: 12px; }
-        label { display: block; margin-bottom: 5px; font-size: 12px; color: #94a3b8; }
-        input[type="file"], input[type="text"], textarea { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 13px; }
-        textarea { resize: vertical; height: 80px; }
-        button { width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-        button:hover { background: #0369a1; }
-        button:disabled { background: #475569; cursor: not-allowed; }
-        #preview-box { margin-top: 15px; display: none; text-align: center; position: relative; width: 100%; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 9/16; max-height: 400px; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        .overlay-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-style: italic; font-size: 20px; font-weight: bold; text-align: center; width: 85%; text-shadow: 0 2px 8px rgba(0,0,0,0.9); z-index: 10; }
-        .watermark { position: absolute; bottom: 20px; left: 20px; color: rgba(255, 255, 255, 0.4); font-size: 14px; font-weight: bold; z-index: 10; animation: moveWatermark 6s ease-in-out infinite alternate; }
-        @keyframes moveWatermark {
-            0% { bottom: 20px; left: 20px; opacity: 0.3; }
-            100% { top: 20px; right: 20px; left: auto; bottom: auto; opacity: 0.6; }
-        }
-        #downloadArea { margin-top: 15px; text-align: center; display: none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1220">
+  <title>TURAN MEDYA | Otomatik Lyrics Video Motoru</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1220; --panel:#172337; --panel2:#0e192b; --line:#2b3b53; --muted:#9aabc2; --cyan:#38bdf8; --green:#22c55e; --red:#fb7185; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; padding:28px 16px; background:radial-gradient(ellipse at top,#172b45 0,#0b1220 58%); color:#f8fafc; font-family:Inter,"Segoe UI",Arial,sans-serif; }
+    .shell { width:min(100%,760px); margin:0 auto; }
+    .brand { text-align:center; margin:5px 0 22px; }
+    .brand h1 { margin:0; color:var(--cyan); font-size:clamp(22px,4vw,30px); letter-spacing:1.6px; }
+    .brand p { color:var(--muted); font-size:13px; margin:8px 0 0; }
+    .panel { background:rgba(23,35,55,.96); border:1px solid var(--line); border-radius:18px; padding:24px; box-shadow:0 20px 55px #0006; }
+    .section-title { font-size:15px; font-weight:750; margin:0 0 14px; color:#e5f3ff; }
+    .field { margin:0 0 17px; }
+    label { display:block; margin-bottom:7px; font-size:13px; font-weight:650; color:#c3d0e2; }
+    input[type=text], textarea, select, input[type=file] { width:100%; border:1px solid #40516b; background:#0c1728; color:#f8fafc; border-radius:10px; padding:12px 13px; font:inherit; font-size:14px; outline:none; }
+    input:focus, textarea:focus, select:focus { border-color:var(--cyan); box-shadow:0 0 0 3px #38bdf822; }
+    textarea { min-height:165px; resize:vertical; line-height:1.65; }
+    input[type=file] { padding:9px; }
+    .hint { color:var(--muted); font-size:12px; margin-top:6px; line-height:1.5; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+    button, .download { border:0; border-radius:10px; padding:13px 17px; font-weight:750; font-size:14px; cursor:pointer; text-decoration:none; display:inline-flex; justify-content:center; align-items:center; gap:8px; transition:filter .15s,transform .15s; }
+    button:hover,.download:hover { filter:brightness(1.08); transform:translateY(-1px); }
+    button:disabled { opacity:.55; cursor:not-allowed; transform:none; }
+    .primary { width:100%; margin-top:5px; background:linear-gradient(120deg,#0284c7,#0ea5e9); color:white; min-height:50px; font-size:15px; }
+    .secondary { background:#33445d; color:#eaf4ff; }
+    .status { display:none; margin-top:19px; padding:15px; background:#0b1627; border:1px solid var(--line); border-radius:12px; }
+    .status.show { display:block; }
+    .status-head { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:10px; font-size:13px; font-weight:700; }
+    #statusText { color:var(--cyan); }
+    .progress-track { height:8px; width:100%; overflow:hidden; border-radius:20px; background:#26364d; }
+    .progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#0284c7,#22c55e); transition:width .2s; }
+    .log { max-height:135px; overflow:auto; margin-top:10px; color:#9fb2ca; font-size:11px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .preview { display:none; margin-top:22px; text-align:center; }
+    .preview.show { display:block; }
+    .preview h2 { font-size:15px; color:var(--cyan); margin:0 0 12px; }
+    video { display:block; width:min(100%,330px); max-height:600px; object-fit:contain; margin:0 auto 14px; border-radius:12px; background:#000; }
+    .download { background:var(--green); color:#052e16; }
+    .notice { border:1px solid #36516c; border-radius:10px; padding:12px; background:#10243a; color:#b9cbe0; font-size:12px; line-height:1.55; margin-top:17px; }
+    .notice strong { color:#e7f5ff; }
+    .footer { text-align:center; color:#71839b; font-size:11px; padding:16px 8px 0; }
+    @media(max-width:560px) { .panel{padding:18px;} .grid{grid-template-columns:1fr;} .actions>*{width:100%;} }
+  </style>
 </head>
 <body>
+  <main class="shell">
+    <header class="brand">
+      <h1>TURAN MEDYA</h1>
+      <p>OTOMATİK LYRICS VIDEO MOTORU</p>
+    </header>
 
-    <div class="container">
-        <h1>TURAN MEDYA - LVR MOTORU</h1>
-        
-        <div class="form-group">
-            <label>Kayan Filigran / Sayfa İsmi</label>
-            <input type="text" id="watermarkText" value="@mehmetllyrics">
-        </div>
+    <section class="panel">
+      <h2 class="section-title">Video ayarları</h2>
 
-        <div class="form-group">
-            <label>Şarkı Ses Dosyası (.mp3)</label>
-            <input type="file" id="audioFile" accept="audio/*">
-        </div>
+      <div class="field">
+        <label for="watermarkText">Sayfa adı / kayan filigran</label>
+        <input id="watermarkText" type="text" value="@mehmetllyrics" maxlength="50">
+      </div>
 
-        <div class="form-group">
-            <label>Şarkı Sözleri</label>
-            <textarea id="lyricsText">Gönlümdeki yarayla bıraktın beni başbaşa
+      <div class="field">
+        <label for="audioFile">Şarkı ses dosyası (MP3 / WAV / M4A)</label>
+        <input id="audioFile" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac">
+        <div class="hint" id="audioInfo">Her işlemde kullanacağın şarkıyı buradan seç.</div>
+      </div>
+
+      <div class="field">
+        <label for="lyricsText">Şarkı sözleri</label>
+        <textarea id="lyricsText" placeholder="Her satıra bir cümle yaz.\nHer satırda arka plan videosu değişecek.">Gönlümdeki yarayla bıraktın beni başbaşa
 Mutlu musun sevgili yar
 Daha yetmezmiş gibi tuzu bastın yarama</textarea>
+        <div class="hint">Her dolu satır ayrı bir sahne olur. Boş satırlar yok sayılır. Şimdilik sözler şarkının tamamına eşit süreyle dağıtılır.</div>
+      </div>
+
+      <div class="grid">
+        <div class="field">
+          <label for="resolution">Video çözünürlüğü</label>
+          <select id="resolution">
+            <option value="720">720 × 1280 (daha hızlı)</option>
+            <option value="1080" selected>1080 × 1920 (Full HD)</option>
+          </select>
         </div>
-
-        <button id="processBtn" onclick="generateFinalVideo()">VİDEOYU OLUŞTUR VE İNDİR</button>
-
-        <div id="preview-box">
-            <video id="bgVideo" autoplay muted loop playsinline></video>
-            <div id="lyricsDisplay" class="overlay-text">Sözler yükleniyor...</div>
-            <div id="watermarkDisplay" class="watermark">@mehmetllyrics</div>
+        <div class="field">
+          <label for="textColor">Şarkı sözü rengi</label>
+          <select id="textColor">
+            <option value="#ffffff" selected>Beyaz</option>
+            <option value="#ffe082">Altın sarısı</option>
+            <option value="#bde7ff">Açık mavi</option>
+          </select>
         </div>
+      </div>
 
-        <div id="downloadArea">
-            <a id="downloadLink" style="display:inline-block; padding:12px 20px; background:#22c55e; color:#fff; text-decoration:none; border-radius:8px; font-weight:bold;" target="_blank">📥 Videoyu Cihaza İndir</a>
-        </div>
-    </div>
+      <div class="actions">
+        <button class="secondary" id="checkPoolBtn" type="button">☁️ Manzara havuzunu kontrol et</button>
+      </div>
+      <div class="hint" id="poolInfo">Supabase: manzaralar bucket'ı</div>
 
-    <script>
-        const SUPABASE_URL = "https://xgkdzzxrpoixlreqfoye.supabase.co";
+      <button class="primary" id="processBtn" type="button">🎬 VİDEOYU OLUŞTUR VE İNDİR</button>
 
-        // Senin yüklediğin 20 videonun dosya isimleri havuzu (İsim araması takılmasın diye direkt listelendi)
-        const videoNames = [
-            "1012606297486996221_1.mp4", "1012606297486996229_1.mp4", "1012606297486996230_1.mp4",
-            "1012606297486996233_1.mp4", "1012606297486996234_1.mp4", "1012606297486996238_1.mp4",
-            "1012606297486996240_1.mp4", "1012606297486996242_1.mp4", "1012606297486996244_1.mp4",
-            "1012606297486996245_1.mp4", "1012606297486996247_1.mp4", "1012606297486996248_1.mp4",
-            "1012606297486996250_1.mp4", "1012606297486996252_1.mp4", "1012606297486996259_1.mp4",
-            "1012606297486996261_1.mp4", "1012606297486996265_1.mp4", "1012606297486996267_1.mp4",
-            "1012606297486996269_1.mp4", "1012606297486996273_1.mp4"
-        ];
+      <div class="status" id="statusBox" aria-live="polite">
+        <div class="status-head"><span id="statusText">Hazırlanıyor...</span><span id="percentText">0%</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="log" id="logBox"></div>
+      </div>
 
-        async function generateFinalVideo() {
-            const audioInput = document.getElementById('audioFile').files[0];
-            const lyrics = document.getElementById('lyricsText').value.trim();
-            const watermark = document.getElementById('watermarkText').value.trim();
+      <div class="preview" id="previewContainer">
+        <h2>Oluşturulan video</h2>
+        <video id="outputVideo" controls playsinline></video>
+        <a class="download" id="downloadBtn" href="#" download="turan-medya-lyrics.mp4">📥 MP4 dosyasını indir</a>
+      </div>
 
-            if (!audioInput || !lyrics) {
-                alert("Lütfen MP3 ses dosyasını seçin ve şarkı sözlerini girin!");
-                return;
-            }
+      <div class="notice">
+        <strong>Bilgi:</strong> Video bilgisayarında, tarayıcı içinde işlenir. İlk render sırasında FFmpeg motoru yaklaşık 30 MB indirilir. Kaynak MP3 ve manzara klipleri bu işlem için Supabase'ten tarayıcıya alınır; video üretimi için ayrı bir sunucu kullanılmaz.
+      </div>
+    </section>
+    <div class="footer">TURAN MEDYA • Kişisel Lyrics Video Stüdyosu</div>
+  </main>
 
-            const btn = document.getElementById('processBtn');
-            btn.disabled = true;
-            btn.innerText = "Rastgele Manzara Seçiliyor...";
+  <script>
+    // Supabase projenin mevcut adresi ve publishable (anon) anahtarı.
+    // Publishable key tarayıcıda kullanılabilir; asla service_role/secret key koyma.
+    const SUPABASE_URL = 'https://xgkdzzxrpoixlreqfoye.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_6aGsT_Si7hu_S5bS66f6FA_Yx-Edpe_';
+    const BUCKET_NAME = 'manzaralar';
 
-            try {
-                // 20 video arasından tamamen rastgele bir tanesini seç
-                const randomName = videoNames[Math.floor(Math.random() * videoNames.length)];
-                const videoUrl = `${SUPABASE_URL}/storage/v1/object/public/manzaralar/${randomName}`;
+    const FFmpegClass = window.FFmpegWASM?.FFmpeg;
+    const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
+    let ffmpeg = null;
+    let ffmpegReady = false;
+    let currentVideoUrl = null;
+    let cachedPool = null;
+    let previousSegmentCount = 0;
+    let previousAudioPath = null;
+    let logLines = [];
 
-                // Önizleme videosuna bağla
-                const videoEl = document.getElementById('bgVideo');
-                videoEl.src = videoUrl;
+    const $ = (id) => document.getElementById(id);
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-                document.getElementById('lyricsDisplay').innerText = lyrics.split('\n')[0] || lyrics;
-                document.getElementById('watermarkDisplay').innerText = watermark;
-                document.getElementById('preview-box').style.display = 'block';
+    function log(message) {
+      const line = String(message);
+      logLines.push(line);
+      if (logLines.length > 35) logLines = logLines.slice(-35);
+      $('logBox').textContent = logLines.join('\n');
+      $('logBox').scrollTop = $('logBox').scrollHeight;
+      console.log('[TURAN MEDYA]', line);
+    }
 
-                // İndirme linkini doğrudan Supabase'deki video dosyasına bağla
-                const dlLink = document.getElementById('downloadLink');
-                dlLink.href = videoUrl;
-                dlLink.download = "turan-medya-lyrics.mp4";
-                document.getElementById('downloadArea').style.display = 'block';
+    function setStatus(message, percent) {
+      $('statusBox').classList.add('show');
+      $('statusText').textContent = message;
+      const p = Math.max(0, Math.min(100, Number(percent) || 0));
+      $('percentText').textContent = `${Math.round(p)}%`;
+      $('progressFill').style.width = `${p}%`;
+    }
 
-                btn.innerText = "VİDEOYU OLUŞTUR VE İNDİR";
-                btn.disabled = false;
-                alert("Başarılı! Havuzdan rastgele video seçildi, sözler giydirildi ve indirmeye hazır hale getirildi.");
+    function getLyrics() {
+      return $('lyricsText').value
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+    }
 
-            } catch (err) {
-                alert("Hata: " + err.message);
-                btn.disabled = false;
-                btn.innerText = "VİDEOYU OLUŞTUR VE İNDİR";
-            }
+    function getAudioDuration(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const audio = new Audio();
+        audio.preload = 'metadata';
+        audio.onloadedmetadata = () => {
+          const duration = audio.duration;
+          URL.revokeObjectURL(url);
+          if (!Number.isFinite(duration) || duration <= 0) reject(new Error('Ses dosyasının süresi okunamadı. MP3 veya WAV deneyin.'));
+          else resolve(duration);
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Ses dosyası okunamadı. Dosyanın sağlam ve desteklenen bir formatta olduğundan emin ol.'));
+        };
+        audio.src = url;
+      });
+    }
+
+    async function listBackgroundVideos(forceRefresh = false) {
+      if (cachedPool && !forceRefresh) return cachedPool;
+      if (!supabaseClient) throw new Error('Supabase kütüphanesi yüklenemedi. Sayfayı yenileyip tekrar dene.');
+
+      const allFiles = [];
+      const pageSize = 500;
+      for (let offset = 0; offset < 5000; offset += pageSize) {
+        const { data, error } = await supabaseClient.storage
+          .from(BUCKET_NAME)
+          .list('', { limit: pageSize, offset, sortBy: { column: 'name', order: 'asc' } });
+        if (error) throw new Error(`Supabase dosya listesi alınamadı: ${error.message}`);
+        const page = data || [];
+        allFiles.push(...page.filter(file => file && file.id !== null && file.name));
+        if (page.length < pageSize) break;
+      }
+
+      const valid = allFiles.filter(file => /\.(mp4|webm|mov|m4v)$/i.test(file.name));
+      if (!valid.length) throw new Error(`'${BUCKET_NAME}' bucket'ının kök dizininde MP4, WEBM, MOV veya M4V video bulunamadı.`);
+      cachedPool = valid;
+      return valid;
+    }
+
+    function getPublicFileUrl(fileName) {
+      const { data } = supabaseClient.storage.from(BUCKET_NAME).getPublicUrl(fileName);
+      if (!data?.publicUrl) throw new Error(`Video adresi oluşturulamadı: ${fileName}`);
+      return data.publicUrl;
+    }
+
+    async function checkPool() {
+      const btn = $('checkPoolBtn');
+      btn.disabled = true;
+      $('poolInfo').textContent = 'Supabase havuzu kontrol ediliyor...';
+      try {
+        const files = await listBackgroundVideos(true);
+        $('poolInfo').textContent = `✅ ${files.length} adet manzara videosu bulundu. Her söz satırı için rastgele seçim yapılacak.`;
+      } catch (error) {
+        $('poolInfo').textContent = `❌ ${error.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function shuffledSceneFiles(pool, count) {
+      const result = [];
+      let lastName = null;
+      while (result.length < count) {
+        const batch = [...pool];
+        for (let i = batch.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [batch[i], batch[j]] = [batch[j], batch[i]];
         }
-    </script>
+        if (batch.length > 1 && batch[0].name === lastName) {
+          [batch[0], batch[1]] = [batch[1], batch[0]];
+        }
+        for (const file of batch) {
+          if (result.length >= count) break;
+          result.push(file);
+          lastName = file.name;
+        }
+      }
+      return result;
+    }
+
+    async function fetchAsBytes(url, label) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`${label} indirilemedi (HTTP ${response.status}). Supabase dosya erişimini kontrol et.`);
+      return new Uint8Array(await response.arrayBuffer());
+    }
+
+    async function toBlobURL(url, mimeType) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`FFmpeg bileşeni indirilemedi: ${url} (HTTP ${response.status})`);
+      const blob = new Blob([await response.arrayBuffer()], { type: mimeType });
+      return URL.createObjectURL(blob);
+    }
+
+    async function ensureFFmpeg() {
+      if (ffmpegReady) return;
+      if (!FFmpegClass) throw new Error('FFmpeg arayüzü yüklenemedi. CDN engellenmiş olabilir; internet bağlantısını veya tarayıcı eklentilerini kontrol et.');
+      setStatus('Video motoru ilk kez yükleniyor (~30 MB)...', 3);
+      log('FFmpeg tek iş parçacıklı video motoru indiriliyor.');
+      ffmpeg = new FFmpegClass();
+      ffmpeg.on('log', ({ message }) => {
+        if (message && /(error|failed|invalid|could not)/i.test(message)) log(message);
+      });
+      const ffBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd';
+      const coreBase = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
+      const coreURL = await toBlobURL(`${coreBase}/ffmpeg-core.js`, 'text/javascript');
+      const wasmURL = await toBlobURL(`${coreBase}/ffmpeg-core.wasm`, 'application/wasm');
+      const classWorkerURL = await toBlobURL(`${ffBase}/814.ffmpeg.js`, 'text/javascript');
+      await ffmpeg.load({ coreURL, wasmURL, classWorkerURL });
+      ffmpegReady = true;
+      log('FFmpeg hazır.');
+    }
+
+    function wrapText(ctx, text, maxWidth) {
+      const words = text.split(/\s+/).filter(Boolean);
+      const lines = [];
+      let line = '';
+      for (const word of words) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (ctx.measureText(candidate).width > maxWidth && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = candidate;
+        }
+      }
+      if (line) lines.push(line);
+      return lines.length ? lines : [text];
+    }
+
+    function makeCaptionPng(text, width, height, color) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      let fontSize = Math.round(width * 0.075);
+      let lines;
+      const maxWidth = width * 0.84;
+      do {
+        ctx.font = `800 ${fontSize}px Arial, sans-serif`;
+        lines = wrapText(ctx, text, maxWidth);
+        if (lines.length <= 4) break;
+        fontSize -= 4;
+      } while (fontSize > 34);
+      ctx.font = `800 ${fontSize}px Arial, sans-serif`;
+      const lineHeight = Math.round(fontSize * 1.28);
+      const totalHeight = lines.length * lineHeight;
+      const startY = Math.round(height * 0.5 - totalHeight / 2 + lineHeight * 0.78);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = Math.max(7, fontSize * 0.12);
+      ctx.strokeStyle = 'rgba(0,0,0,.92)';
+      ctx.fillStyle = color;
+      ctx.shadowColor = 'rgba(0,0,0,.8)';
+      ctx.shadowBlur = 14;
+      ctx.shadowOffsetY = 4;
+      lines.forEach((line, index) => {
+        const y = startY + index * lineHeight;
+        ctx.strokeText(line, width / 2, y, maxWidth);
+        ctx.fillText(line, width / 2, y, maxWidth);
+      });
+      return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Şarkı sözü görseli hazırlanamadı.')), 'image/png'));
+    }
+
+    function makeWatermarkPng(text, width) {
+      if (!text) return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.min(620, Math.max(300, Math.round(width * 0.55)));
+      canvas.height = Math.round(canvas.width * 0.19);
+      const ctx = canvas.getContext('2d');
+      const size = Math.round(canvas.height * 0.48);
+      ctx.font = `700 ${size}px Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255,255,255,.48)';
+      ctx.shadowColor = 'rgba(0,0,0,.65)';
+      ctx.shadowBlur = 5;
+      ctx.fillText(text, canvas.width / 2, canvas.height / 2, canvas.width - 24);
+      return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Filigran görseli hazırlanamadı.')), 'image/png'));
+    }
+
+    async function safeDelete(path) {
+      try { await ffmpeg.deleteFile(path); } catch (_) { /* dosya yoksa devam et */ }
+    }
+
+    async function renderScene({ file, line, index, duration, width, height, watermarkName }) {
+      const ext = (file.name.match(/\.(mp4|webm|mov|m4v)$/i) || [,'mp4'])[1].toLowerCase();
+      const bgName = `background_${index}.${ext}`;
+      const captionName = `caption_${index}.png`;
+      const segmentName = `scene_${String(index).padStart(3,'0')}.mp4`;
+
+      log(`${index + 1}. sahne: ${file.name}`);
+      const videoBytes = await fetchAsBytes(getPublicFileUrl(file.name), file.name);
+      await ffmpeg.writeFile(bgName, videoBytes);
+      const captionBlob = await makeCaptionPng(line, width, height, $('textColor').value);
+      await ffmpeg.writeFile(captionName, new Uint8Array(await captionBlob.arrayBuffer()));
+
+      const args = [
+        '-y',
+        '-stream_loop', '-1', '-i', bgName,
+        '-loop', '1', '-framerate', '30', '-i', captionName
+      ];
+      let filter;
+      if (watermarkName) {
+        args.push('-loop', '1', '-framerate', '30', '-i', watermarkName);
+        filter = `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,fps=30[bg];[bg][1:v]overlay=0:0:shortest=1[captioned];[captioned][2:v]overlay=x='mod(t*105\\,W+w)-w':y=H*0.84:shortest=1,format=yuv420p[v]`;
+      } else {
+        filter = `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,fps=30[bg];[bg][1:v]overlay=0:0:shortest=1,format=yuv420p[v]`;
+      }
+      args.push(
+        '-filter_complex', filter,
+        '-map', '[v]', '-an',
+        '-t', duration.toFixed(3),
+        '-r', '30', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+        '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+        segmentName
+      );
+
+      const exitCode = await ffmpeg.exec(args);
+      if (exitCode !== 0) throw new Error(`${index + 1}. sahne kodlanamadı. Kaynak video formatı desteklenmiyor olabilir.`);
+      await safeDelete(bgName);
+      await safeDelete(captionName);
+      return segmentName;
+    }
+
+    async function generateVideo() {
+      const processBtn = $('processBtn');
+      processBtn.disabled = true;
+      $('checkPoolBtn').disabled = true;
+      logLines = [];
+      $('logBox').textContent = '';
+      $('previewContainer').classList.remove('show');
+
+      try {
+        if (currentVideoUrl) {
+          URL.revokeObjectURL(currentVideoUrl);
+          currentVideoUrl = null;
+        }
+        $('outputVideo').pause();
+        $('outputVideo').removeAttribute('src');
+        $('outputVideo').load();
+        if (ffmpegReady) {
+          for (let i = 0; i < previousSegmentCount; i++) await safeDelete(`scene_${String(i).padStart(3,'0')}.mp4`);
+          await safeDelete('concat_list.txt');
+          await safeDelete('turan-medya-lyrics.mp4');
+          await safeDelete('watermark.png');
+          if (previousAudioPath) await safeDelete(previousAudioPath);
+        }
+        previousSegmentCount = 0;
+        const audioFile = $('audioFile').files[0];
+        const lyrics = getLyrics();
+        const watermarkText = $('watermarkText').value.trim();
+        if (!audioFile) throw new Error('Önce şarkı ses dosyasını seç.');
+        if (!lyrics.length) throw new Error('Şarkı sözlerini satır satır gir.');
+
+        setStatus('Şarkı süresi okunuyor...', 1);
+        const audioDuration = await getAudioDuration(audioFile);
+        const sceneDuration = audioDuration / lyrics.length;
+        if (sceneDuration < 0.75) throw new Error('Söz satırı sayısı şarkı süresine göre çok fazla. Satırları birleştir veya daha uzun bir ses dosyası seç.');
+        $('audioInfo').textContent = `${audioFile.name} • ${audioDuration.toFixed(1)} saniye • ${lyrics.length} sahne`;
+
+        setStatus('Supabase manzara havuzu taranıyor...', 3);
+        const pool = await listBackgroundVideos(true);
+        const chosenFiles = shuffledSceneFiles(pool, lyrics.length);
+        $('poolInfo').textContent = `✅ ${pool.length} video bulundu. Bu şarkı için ${lyrics.length} sahne seçildi.`;
+        log(`${pool.length} manzara videosu bulundu; ${lyrics.length} tanesi seçildi.`);
+
+        await ensureFFmpeg();
+        const width = Number($('resolution').value);
+        const height = Math.round(width * 16 / 9);
+        const audioName = 'turan_input_audio';
+        const audioExt = (audioFile.name.match(/\.(mp3|wav|m4a|aac)$/i) || [,'mp3'])[1].toLowerCase();
+        const audioPath = `${audioName}.${audioExt}`;
+        setStatus('Şarkı FFmpeg motoruna aktarılıyor...', 5);
+        await ffmpeg.writeFile(audioPath, new Uint8Array(await audioFile.arrayBuffer()));
+        previousAudioPath = audioPath;
+
+        let watermarkName = null;
+        if (watermarkText) {
+          const watermarkBlob = await makeWatermarkPng(watermarkText, width);
+          watermarkName = 'watermark.png';
+          await ffmpeg.writeFile(watermarkName, new Uint8Array(await watermarkBlob.arrayBuffer()));
+        }
+
+        const segments = [];
+        for (let i = 0; i < lyrics.length; i++) {
+          const startPercent = 7 + (i / lyrics.length) * 78;
+          setStatus(`${i + 1}/${lyrics.length} sahne hazırlanıyor...`, startPercent);
+          const segment = await renderScene({
+            file: chosenFiles[i], line: lyrics[i], index: i,
+            duration: sceneDuration, width, height, watermarkName
+          });
+          segments.push(segment);
+          previousSegmentCount = segments.length;
+          setStatus(`${i + 1}/${lyrics.length} sahne tamamlandı`, 7 + ((i + 1) / lyrics.length) * 78);
+        }
+
+        setStatus('Sahneler birleştiriliyor ve şarkı ekleniyor...', 88);
+        const concatText = segments.map(name => `file '${name}'`).join('\n') + '\n';
+        await ffmpeg.writeFile('concat_list.txt', new TextEncoder().encode(concatText));
+        const finalArgs = [
+          '-y', '-f', 'concat', '-safe', '0', '-i', 'concat_list.txt',
+          '-i', audioPath,
+          '-map', '0:v:0', '-map', '1:a:0',
+          '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
+          '-t', audioDuration.toFixed(3), '-movflags', '+faststart',
+          'turan-medya-lyrics.mp4'
+        ];
+        const finalCode = await ffmpeg.exec(finalArgs);
+        if (finalCode !== 0) throw new Error('Son MP4 dosyası birleştirilemedi. Şarkı formatını MP3 veya WAV olarak dene.');
+
+        setStatus('MP4 dosyası hazırlanıyor...', 97);
+        const outputData = await ffmpeg.readFile('turan-medya-lyrics.mp4');
+        const outputBlob = new Blob([outputData], { type: 'video/mp4' });
+        if (currentVideoUrl) URL.revokeObjectURL(currentVideoUrl);
+        currentVideoUrl = URL.createObjectURL(outputBlob);
+        $('outputVideo').src = currentVideoUrl;
+        $('downloadBtn').href = currentVideoUrl;
+        $('downloadBtn').download = `turan-medya-${Date.now()}.mp4`;
+        $('previewContainer').classList.add('show');
+        setStatus('Tamamlandı! MP4 videon hazır.', 100);
+        log(`Bitti. Süre: ${audioDuration.toFixed(1)} sn. Çözünürlük: ${width}x${height}.`);
+        $('previewContainer').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (error) {
+        console.error(error);
+        setStatus('İşlem durdu: ' + error.message, 0);
+        log('HATA: ' + error.message);
+        alert('Video oluşturulamadı:\n' + error.message);
+      } finally {
+        processBtn.disabled = false;
+        $('checkPoolBtn').disabled = false;
+      }
+    }
+
+    $('audioFile').addEventListener('change', async () => {
+      const file = $('audioFile').files[0];
+      if (!file) return;
+      try {
+        const duration = await getAudioDuration(file);
+        $('audioInfo').textContent = `${file.name} • ${duration.toFixed(1)} saniye • ${getLyrics().length} sahne`;
+      } catch (error) {
+        $('audioInfo').textContent = error.message;
+      }
+    });
+    $('lyricsText').addEventListener('input', () => {
+      const file = $('audioFile').files[0];
+      if (file && $('audioInfo').textContent.includes('saniye')) {
+        $('audioInfo').textContent = $('audioInfo').textContent.replace(/• \d+ sahne$/, `• ${getLyrics().length} sahne`);
+      }
+    });
+    $('checkPoolBtn').addEventListener('click', checkPool);
+    $('processBtn').addEventListener('click', generateVideo);
+
+    if (!supabaseClient) $('poolInfo').textContent = '❌ Supabase SDK yüklenemedi. İnternet bağlantısını kontrol et.';
+  </script>
 </body>
 </html>
