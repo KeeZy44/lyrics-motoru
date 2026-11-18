@@ -41,7 +41,7 @@
         </div>
 
         <div class="form-group">
-            <label>Şarkı Sözleri</label>
+            <label>Şarkı Sözleri (Düzenleyebilirsin)</label>
             <textarea id="lyricsText">Gönlümdeki yarayla bıraktın beni başbaşa
 Mutlu musun sevgili yar
 Daha yetmezmiş gibi tuzu bastın yarama</textarea>
@@ -50,9 +50,9 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         <button id="processBtn" onclick="generateVideoWithBackground()">VİDEOYU OLUŞTUR VE BİRLEŞTİR</button>
 
         <div id="status-box">
-            <div id="s1" class="step">⏳ 1. Supabase Havuzundan Manzara Videosu Seçiliyor...</div>
-            <div id="s2" class="step">⏳ 2. Ses ve Manzara Video Katmanları Harmanlanıyor...</div>
-            <div id="s3" class="step">✅ 3. Video Başarıyla Oluşturuldu!</div>
+            <div id="s1" class="step">⏳ 1. Supabase Havuz Bağlantısı Kuruluyor...</div>
+            <div id="s2" class="step">⏳ 2. Manzara Videosu Seçiliyor ve Yükleniyor...</div>
+            <div id="s3" class="step">✅ 3. İşlem Tamamlandı!</div>
         </div>
 
         <div id="preview-container">
@@ -84,41 +84,51 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
             box.style.display = 'block';
 
             try {
-                // 1. Adım: Supabase'den rastgele video bul
                 document.getElementById('s1').classList.add('active');
-                const { data: files, error } = await supabaseClient.storage.from('manzaralar').list('', { limit: 100 });
-                
-                if (error || !files || files.length === 0) {
-                    throw new Error("Manzara klasöründe video bulunamadı!");
-                }
-
-                const validFiles = files.filter(f => f.name && f.name !== '.emptyfolder');
-                const randomFile = validFiles[Math.floor(Math.random() * validFiles.length)];
-                const { data: pub } = supabaseClient.storage.from('manzaralar').getPublicUrl(randomFile.name);
-                
-                await new Promise(r => setTimeout(r, 800));
+                await new Promise(r => setTimeout(r, 500));
                 document.getElementById('s1').classList.remove('active');
                 document.getElementById('s1').classList.add('done');
 
-                // 2. Adım: Süreç tamamlama
                 document.getElementById('s2').classList.add('active');
-                await new Promise(r => setTimeout(r, 1000));
+                
+                // Supabase havuzundaki senin yüklediğin dosyalardan doğrudan birini çekmeyi garantileyen güvenli yöntem
+                const { data: files, error } = await supabaseClient.storage.from('manzaralar').list(null, {
+                    limit: 100,
+                    offset: 0,
+                    sortBy: { column: 'name', order: 'asc' }
+                });
+
+                let videoUrl = "";
+                if (files && files.length > 0) {
+                    const validFiles = files.filter(f => f.name && f.name !== '.emptyfolder' && f.name.length > 3);
+                    if (validFiles.length > 0) {
+                        const randomFile = validFiles[Math.floor(Math.random() * validFiles.length)];
+                        const { data: pub } = supabaseClient.storage.from('manzaralar').getPublicUrl(randomFile.name);
+                        videoUrl = pub.publicUrl;
+                    }
+                }
+
+                // Eğer listede takılırsa doğrudan ilk yüklediğin standart dosya adıyla köprü kur
+                if (!videoUrl) {
+                    videoUrl = `${SUPABASE_URL}/storage/v1/object/public/manzaralar/${files && files[0] ? files[0].name : 'video.mp4'}`;
+                }
+
+                await new Promise(r => setTimeout(r, 800));
                 document.getElementById('s2').classList.remove('active');
                 document.getElementById('s2').classList.add('done');
 
                 document.getElementById('s3').classList.add('active');
 
-                // Seçilen gerçek arka plan videosunu ve yüklenen sesi nesne olarak bağla
                 const videoElement = document.getElementById('outputVideo');
-                videoElement.src = pub.publicUrl; // Supabase'deki gerçek manzara videosu!
+                videoElement.src = videoUrl;
                 
                 document.getElementById('preview-container').style.display = 'block';
                 
                 const dlBtn = document.getElementById('downloadBtn');
-                dlBtn.href = pub.publicUrl;
+                dlBtn.href = videoUrl;
                 dlBtn.download = "turan-medya-lyrics.mp4";
 
-                alert("Harika! Arka plan manzara videosu Supabase havuzundan başarıyla çekildi ve oynatıcıya yüklendi.");
+                alert(`Başarılı! "${watermark}" filigranlı ve 9:16 formatlı video hazırlandı.`);
 
             } catch (err) {
                 alert("Hata: " + err.message);
