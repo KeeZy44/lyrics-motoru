@@ -41,6 +41,11 @@
     .preview h2 { font-size:15px; color:var(--cyan); margin:0 0 12px; }
     video { display:block; width:min(100%,330px); max-height:600px; object-fit:contain; margin:0 auto 14px; border-radius:12px; background:#000; }
     .download { background:var(--green); color:#052e16; }
+    .timing-panel { margin-top:12px; padding:12px; border:1px solid #36516c; border-radius:10px; background:#0b1627; }
+    .timing-head { display:flex; justify-content:space-between; align-items:center; gap:10px; color:#e7f5ff; font-size:13px; margin-bottom:8px; }
+    .timing-row { display:grid; grid-template-columns:minmax(0,1fr) 112px; gap:10px; align-items:center; padding:7px 0; border-top:1px solid #26364d; }
+    .timing-lyric { color:#d7e5f5; font-size:12px; overflow-wrap:anywhere; }
+    .timing-row input { width:100%; padding:8px; background:#0f1b2d; border:1px solid #405570; border-radius:7px; color:#fff; }
     .notice { border:1px solid #36516c; border-radius:10px; padding:12px; background:#10243a; color:#b9cbe0; font-size:12px; line-height:1.55; margin-top:17px; }
     .notice strong { color:#e7f5ff; }
     .footer { text-align:center; color:#71839b; font-size:11px; padding:16px 8px 0; }
@@ -66,6 +71,7 @@
         <label for="audioFile">Şarkı ses dosyası (MP3 / WAV / M4A)</label>
         <input id="audioFile" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac">
         <div class="hint" id="audioInfo">Her işlemde kullanacağın şarkıyı buradan seç.</div>
+        <audio id="audioPreview" controls style="display:none;width:100%;margin-top:9px"></audio>
       </div>
 
       <div class="field">
@@ -73,7 +79,12 @@
         <textarea id="lyricsText" placeholder="Her satıra bir cümle yaz.\nHer satırda arka plan videosu değişecek.">Gönlümdeki yarayla bıraktın beni başbaşa
 Mutlu musun sevgili yar
 Daha yetmezmiş gibi tuzu bastın yarama</textarea>
-        <div class="hint">Her dolu satır ayrı bir sahne olur. Boş satırlar yok sayılır. Şimdilik sözler şarkının tamamına eşit süreyle dağıtılır.</div>
+        <div class="hint">Her dolu satır ayrı bir sahne olur. Her satırın başlangıç saniyesini aşağıdan ayarlayarak şarkıyla eşleştir.</div>
+        <div class="timing-panel" id="timingPanel">
+          <div class="timing-head"><strong>🎵 Söz zamanlaması</strong><span id="timingDuration">Önce şarkı seç</span></div>
+          <div class="hint">Şarkıyı dinlerken her cümlenin başladığı saniyeyi gir. İlk satır 0'dan başlar. Arka plan da aynı saniyede değişir.</div>
+          <div id="timingRows"></div>
+        </div>
       </div>
 
       <div class="grid">
@@ -159,6 +170,57 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
 
     function getLyrics() {
       return $('lyricsText').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    }
+
+    let knownAudioDuration = 0;
+    let timingLyricsSnapshot = [];
+
+    function renderTimingEditor(duration, preserve = true) {
+      const lyrics = getLyrics();
+      const old = preserve ? [...document.querySelectorAll('[data-lyric-start]')].map(el => Number(el.value)) : [];
+      const canPreserve = timingLyricsSnapshot.length === lyrics.length &&
+        timingLyricsSnapshot.every((line, i) => line === lyrics[i]) && old.length === lyrics.length;
+      $('timingRows').innerHTML = '';
+      $('timingDuration').textContent = duration > 0 ? `${duration.toFixed(1)} sn toplam` : 'Önce şarkı seç';
+      lyrics.forEach((line, i) => {
+        const defaultStart = duration > 0 ? (i * duration / Math.max(1, lyrics.length)) : 0;
+        const value = i === 0 ? 0 : (canPreserve ? old[i] : defaultStart);
+        const row = document.createElement('div');
+        row.className = 'timing-row';
+        const label = document.createElement('div');
+        label.className = 'timing-lyric';
+        label.textContent = `${i + 1}. ${line}`;
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '0';
+        input.max = String(Math.max(0, duration || 600));
+        input.step = '0.1';
+        input.value = Number(value).toFixed(1);
+        input.setAttribute('aria-label', `${i + 1}. satır başlangıç saniyesi`);
+        input.dataset.lyricStart = 'true';
+        input.dataset.index = String(i);
+        if (i === 0) input.readOnly = true;
+        row.append(label, input);
+        $('timingRows').appendChild(row);
+      });
+      timingLyricsSnapshot = [...lyrics];
+    }
+
+    function getSceneStartTimes(duration, lyrics) {
+      const fields = [...document.querySelectorAll('[data-lyric-start]')];
+      const defaults = lyrics.map((_, i) => i * duration / lyrics.length);
+      if (fields.length !== lyrics.length) return defaults;
+      const starts = fields.map((field, i) => {
+        const value = Number(field.value);
+        return Number.isFinite(value) ? value : defaults[i];
+      });
+      starts[0] = 0;
+      for (let i = 1; i < starts.length; i++) {
+        if (starts[i] <= starts[i - 1] || starts[i] >= duration) {
+          throw new Error(`${i + 1}. satırın başlangıç zamanı hatalı. Her satır önceki satırdan sonra ve şarkı bitmeden başlamalı.`);
+        }
+      }
+      return starts;
     }
 
     function storageHeaders() {
@@ -351,9 +413,12 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         ctx.fillStyle = 'rgba(255,255,255,0.72)';
         ctx.shadowBlur = 5;
         const textWidth = ctx.measureText(watermark).width;
-        const x = w - ((elapsed * w * 0.16) % (w + textWidth)) + 10;
-        ctx.strokeText(watermark, x, h * 0.86);
-        ctx.fillText(watermark, x, h * 0.86);
+        const cycle = 9;
+        const progress = (elapsed % cycle) / cycle;
+        const x = w + 20 - progress * (w + textWidth + 40);
+        const y = h * 0.91 - progress * h * 0.24;
+        ctx.strokeText(watermark, x, y);
+        ctx.fillText(watermark, x, y);
       }
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
@@ -385,7 +450,7 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
       }
     }
 
-    async function renderWithBrowserRecorder({ audioFile, lyrics, selectedFiles, duration, width, height, watermark }) {
+    async function renderWithBrowserRecorder({ audioFile, lyrics, selectedFiles, sceneStarts, duration, width, height, watermark }) {
       if (!window.MediaRecorder) throw new Error('Bu tarayıcı video kaydını desteklemiyor. Güncel Microsoft Edge veya Chrome kullan.');
       if (!HTMLCanvasElement.prototype.captureStream) throw new Error('Tarayıcı canvas video kaydını desteklemiyor. Güncel Edge veya Chrome kullan.');
 
@@ -477,7 +542,12 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         const paint = () => {
           if (stopped) return;
           const elapsed = Math.min(audio.currentTime || 0, duration);
-          const sceneIndex = Math.min(lyrics.length - 1, Math.floor(elapsed / (duration / lyrics.length)));
+          let sceneIndex = 0;
+          for (let i = 1; i < sceneStarts.length; i++) {
+            if (elapsed >= sceneStarts[i]) sceneIndex = i;
+            else break;
+          }
+          sceneIndex = Math.min(lyrics.length - 1, sceneIndex);
           if (sceneIndex !== lastScene) {
             if (lastScene >= 0) videos[lastScene].pause();
             videos[sceneIndex].play().catch(error => log('Manzara oynatma uyarısı: ' + errorMessage(error)));
@@ -541,6 +611,9 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
 
         setStatus('Şarkı süresi okunuyor...', 2);
         const duration = await getAudioDuration(audioFile);
+        knownAudioDuration = duration;
+        renderTimingEditor(duration, true);
+        const sceneStarts = getSceneStartTimes(duration, lyrics);
         if (duration > 600) throw new Error('Bu sürümde en fazla 10 dakikalık şarkı işlenebilir.');
         if (duration / lyrics.length < 1) throw new Error('Satır sayısı çok fazla. Her sahne en az 1 saniye olmalı; sözleri birleştir.');
 
@@ -554,7 +627,7 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
         const width = Number($('resolution').value);
         const height = Math.round(width * 16 / 9);
         const blob = await renderWithBrowserRecorder({
-          audioFile, lyrics, selectedFiles, duration, width, height, watermark
+          audioFile, lyrics, selectedFiles, sceneStarts, duration, width, height, watermark
         });
 
         setStatus('İndirme dosyası hazırlanıyor...', 99);
@@ -584,8 +657,15 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
       const file = $('audioFile').files[0];
       if (!file) return;
       try {
+        const preview = $('audioPreview');
+        if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+        preview.dataset.objectUrl = URL.createObjectURL(file);
+        preview.src = preview.dataset.objectUrl;
+        preview.style.display = 'block';
         const duration = await getAudioDuration(file);
+        knownAudioDuration = duration;
         $('audioInfo').textContent = `${file.name} • ${duration.toFixed(1)} saniye • ${getLyrics().length} sahne`;
+        renderTimingEditor(duration, false);
       } catch (error) {
         $('audioInfo').textContent = errorMessage(error);
       }
@@ -593,8 +673,11 @@ Daha yetmezmiş gibi tuzu bastın yarama</textarea>
 
     $('lyricsText').addEventListener('input', () => {
       const file = $('audioFile').files[0];
-      if (file && $('audioInfo').textContent.includes('saniye')) {
-        $('audioInfo').textContent = $('audioInfo').textContent.replace(/• \d+ sahne$/, `• ${getLyrics().length} sahne`);
+      if (file && knownAudioDuration > 0) {
+        $('audioInfo').textContent = `${file.name} • ${knownAudioDuration.toFixed(1)} saniye • ${getLyrics().length} sahne`;
+        renderTimingEditor(knownAudioDuration, true);
+      } else {
+        renderTimingEditor(0, false);
       }
     });
 
